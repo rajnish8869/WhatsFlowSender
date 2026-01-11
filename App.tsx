@@ -14,7 +14,7 @@ const initialState: AppState = {
   contacts: [],
   messageTemplate: INITIAL_MESSAGE,
   theme: 'dark',
-  currentContactIndex: 0,
+  currentContactIndex: -1, // Default to -1 (No selection)
   attachment: null,
   config: {
     delay: 1.5,
@@ -27,7 +27,7 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_STEP': return { ...state, step: action.payload };
     case 'IMPORT_CONTACTS': return { ...state, contacts: action.payload };
-    case 'CLEAR_CONTACTS': return { ...state, contacts: [], currentContactIndex: 0 };
+    case 'CLEAR_CONTACTS': return { ...state, contacts: [], currentContactIndex: -1 };
     case 'SET_MESSAGE': return { ...state, messageTemplate: action.payload };
     case 'SET_ATTACHMENT': return { ...state, attachment: action.payload };
     case 'UPDATE_CONFIG': return { ...state, config: { ...state.config, ...action.payload } };
@@ -46,7 +46,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'RESET_RUNNER': 
       return { 
         ...state, 
-        currentContactIndex: 0, 
+        currentContactIndex: -1, 
         contacts: state.contacts.map(c => ({ ...c, status: 'pending' })) 
       };
 
