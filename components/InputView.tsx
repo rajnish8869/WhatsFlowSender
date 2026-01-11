@@ -111,6 +111,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                seenNumbers.add(cleanNumber);
                newContacts.push({
                  id: crypto.randomUUID(),
+                 // Use safe navigation for name.display as per plugin spec
                  name: contact.name?.display || 'Unknown',
                  number: cleanNumber,
                  status: 'pending'
