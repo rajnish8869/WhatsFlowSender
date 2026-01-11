@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
 import { 
-  X, Send, SkipForward, Check, Home, Phone, Share2, MessageSquare, ArrowRight 
+  X, Send, SkipForward, Check, Phone, Share2, MessageSquare, List, Search
 } from 'lucide-react';
 
 interface SessionModeProps {
@@ -12,14 +12,17 @@ interface SessionModeProps {
 }
 
 export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) => {
+  const [showList, setShowList] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const activeContacts = useMemo(() => appState.contacts, [appState.contacts]);
   const currentContact = activeContacts[appState.currentContactIndex];
+  
   // Calculate progress relative to total list
   const progress = activeContacts.length > 0 ? ((appState.currentContactIndex) / activeContacts.length) * 100 : 100;
   
   // Auto-redirect to summary if done
   useEffect(() => {
-    // If we've processed all contacts (index >= length)
     if (appState.currentContactIndex >= activeContacts.length) {
         dispatch({ type: 'SET_STEP', payload: 'summary' });
     }
@@ -60,14 +63,70 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
     dispatch({ type: 'NEXT_CONTACT' });
   };
 
+  const jumpTo = (index: number) => {
+    dispatch({ type: 'SET_CONTACT_INDEX', payload: index });
+    setShowList(false);
+  };
+
   // Guard against null currentContact during transition
   if (!currentContact) {
       return null;
   }
 
-  // --- Active Session ---
   return (
     <div className="flex flex-col h-full animate-fade-in relative pb-8">
+        
+        {/* Contact List Drawer/Modal */}
+        {showList && (
+           <div className="absolute inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col animate-slide-up">
+              <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-900">
+                 <h3 className="font-bold text-lg">Select Contact</h3>
+                 <button onClick={() => setShowList(false)} className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-full">
+                    <X size={20} />
+                 </button>
+              </div>
+              <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-900">
+                 <div className="relative">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+                   <input 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Filter..."
+                      className="w-full bg-zinc-50 dark:bg-zinc-900 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none"
+                   />
+                 </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                 {activeContacts.map((c, idx) => {
+                    if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase()) && !c.number.includes(searchQuery)) return null;
+                    const isActive = idx === appState.currentContactIndex;
+                    return (
+                      <button 
+                        key={c.id} 
+                        onClick={() => jumpTo(idx)}
+                        className={`w-full flex items-center p-3 rounded-xl border transition-all ${
+                           isActive 
+                             ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' 
+                             : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900'
+                        }`}
+                      >
+                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mr-3 ${isActive ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'}`}>
+                            {idx + 1}
+                         </div>
+                         <div className="text-left flex-1 min-w-0">
+                            <p className={`font-medium text-sm truncate ${isActive ? 'text-emerald-900 dark:text-emerald-200' : 'text-zinc-900 dark:text-white'}`}>{c.name}</p>
+                            <div className="flex items-center gap-2">
+                               <p className="text-xs text-zinc-500 font-mono truncate">{c.number}</p>
+                               {c.status === 'sent' && <Check size={12} className="text-emerald-500" />}
+                            </div>
+                         </div>
+                      </button>
+                    );
+                 })}
+              </div>
+           </div>
+        )}
+
         {/* Progress Strip */}
         <div className="absolute -top-6 -left-6 -right-6 h-1 bg-zinc-100 dark:bg-zinc-800">
             <div className="h-full bg-primary-500 transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -78,8 +137,13 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
             <button onClick={() => confirm('Exit session?') && dispatch({ type: 'SET_STEP', payload: 'compose' })} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
                 <X size={24} />
             </button>
-            <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full">
-                {appState.currentContactIndex + 1} / {activeContacts.length}
+            <div className="flex gap-2">
+              <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full">
+                  {appState.currentContactIndex + 1} / {activeContacts.length}
+              </div>
+              <button onClick={() => setShowList(true)} className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1">
+                 <List size={14} /> <span className="text-xs font-bold">List</span>
+              </button>
             </div>
             <div className="w-8" />
         </div>

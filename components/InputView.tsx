@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
-import { Upload, Trash2, ArrowRight, FileText, CheckCircle2, X, Smartphone } from 'lucide-react';
+import { Upload, Trash2, ArrowRight, FileText, CheckCircle2, X, Smartphone, Search, User, Plus } from 'lucide-react';
 import { Contacts } from '@capacitor-community/contacts';
 import { Capacitor } from '@capacitor/core';
 
@@ -15,15 +15,14 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
   const [rawInput, setRawInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
+  // Process pasted text or input
   const processInput = () => {
     setIsProcessing(true);
     setTimeout(() => {
       const lines = rawInput.split(/\r?\n/);
       const newContacts: Contact[] = [];
-      
-      // If adding, start with existing numbers to prevent duplicates
-      // If replacing (initial load), start empty
       const seenNumbers = new Set<string>(
         isAdding ? state.contacts.map(c => c.number) : []
       );
@@ -41,7 +40,6 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
           number = parts[1].replace(/[^0-9]/g, '');
         } else {
           number = trimmed.replace(/[^0-9]/g, '');
-          // Heuristic: skip if it looks like text but interpreted as number
           if (/[a-zA-Z]/.test(trimmed) && number.length < 5) return;
           name = `Contact ${number.slice(-4)}`;
         }
@@ -58,9 +56,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
       });
 
       if (newContacts.length > 0) {
-        // If adding, merge. If not, just use new list (which is effectively replacement)
         const finalList = isAdding ? [...state.contacts, ...newContacts] : newContacts;
-        
         dispatch({ type: 'IMPORT_CONTACTS', payload: finalList });
         logger.success(isAdding ? `Added ${newContacts.length} new contacts` : `Imported ${newContacts.length} unique contacts`);
         setRawInput('');
@@ -88,10 +84,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
       }
 
       const result = await Contacts.getContacts({
-        projection: {
-          name: true,
-          phones: true,
-        },
+        projection: { name: true, phones: true },
       });
 
       const newContacts: Contact[] = [];
@@ -101,11 +94,9 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
 
       for (const contact of result.contacts) {
         if (contact.phones && contact.phones.length > 0) {
-          // Flatten all numbers for this contact
           for (const phoneObj of contact.phones) {
             const rawNumber = phoneObj.number || '';
             const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
-            
             if (cleanNumber.length > 6 && !seenNumbers.has(cleanNumber)) {
                seenNumbers.add(cleanNumber);
                newContacts.push({
@@ -125,9 +116,8 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
         logger.success(`Imported ${newContacts.length} contacts from device`);
         setIsAdding(false);
       } else {
-        logger.warning('No new contacts with valid numbers found.');
+        logger.warning('No new contacts found.');
       }
-
     } catch (e) {
       console.error(e);
       logger.error('Failed to access contacts');
@@ -136,24 +126,94 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
     }
   };
 
+  const removeContact = (id: string) => {
+    const updated = state.contacts.filter(c => c.id !== id);
+    dispatch({ type: 'IMPORT_CONTACTS', payload: updated });
+  };
+
   const hasContacts = state.contacts.length > 0;
-  const showInput = !hasContacts || isAdding;
+  const showList = hasContacts && !isAdding;
+
+  // Filter logic
+  const filteredContacts = state.contacts.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    c.number.includes(searchQuery)
+  );
 
   return (
-    <div className="h-full flex flex-col animate-fade-in relative">
+    <div className="h-full flex flex-col animate-fade-in relative bg-zinc-50 dark:bg-zinc-950">
       
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 pb-24">
-        <div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
-            {isAdding ? 'Add More Contacts' : 'Target Audience'}
-          </h2>
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
-            Paste your list below or import directly from your phone's address book.
-          </p>
-        </div>
+      {showList ? (
+        // --- LIST VIEW ---
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+           <div className="flex-none px-6 pt-6 pb-2">
+              <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2 flex items-center justify-between">
+                <span>Recipients</span>
+                <span className="text-sm font-medium px-3 py-1 bg-zinc-200 dark:bg-zinc-800 rounded-full text-zinc-600 dark:text-zinc-400">
+                  {state.contacts.length}
+                </span>
+              </h2>
+              
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search name or number..."
+                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
+                />
+              </div>
+           </div>
 
-        {showInput ? (
+           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 custom-scrollbar">
+              {filteredContacts.length === 0 ? (
+                <div className="text-center py-10 text-zinc-400">
+                  <p>No contacts match your search.</p>
+                </div>
+              ) : (
+                filteredContacts.map((contact, idx) => (
+                  <div key={contact.id} className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                     <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0">
+                           {contact.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                           <p className="font-semibold text-zinc-900 dark:text-white truncate text-sm">{contact.name}</p>
+                           <p className="text-xs text-zinc-500 font-mono truncate">{contact.number}</p>
+                        </div>
+                     </div>
+                     <button onClick={() => removeContact(contact.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                        <Trash2 size={16} />
+                     </button>
+                  </div>
+                ))
+              )}
+              {/* Spacer for bottom button */}
+              <div className="h-24" />
+           </div>
+
+           <div className="absolute bottom-24 right-6 left-6 flex justify-end pointer-events-none">
+              <button 
+                onClick={() => { setIsAdding(true); setRawInput(''); }}
+                className="pointer-events-auto bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl rounded-full px-5 py-3 font-bold flex items-center gap-2 hover:scale-105 transition-transform"
+              >
+                <Plus size={20} /> Add
+              </button>
+           </div>
+        </div>
+      ) : (
+        // --- INPUT VIEW ---
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 pb-24">
+          <div>
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
+              {isAdding && hasContacts ? 'Add More Contacts' : 'Target Audience'}
+            </h2>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
+              Paste your list below or import directly from your phone's address book.
+            </p>
+          </div>
+
            <div className="relative group flex flex-col min-h-[300px] flex-1">
              <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 rounded-2xl blur opacity-30 transition duration-1000 group-hover:opacity-50" />
              <div className="relative flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm flex flex-col">
@@ -166,63 +226,52 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                   autoFocus={isAdding}
                 />
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                   
-                   {/* Left side actions */}
                    <div className="flex gap-2">
                       <Button size="sm" variant="secondary" onClick={handleNativeImport} isLoading={isProcessing}>
-                        <Smartphone size={16} className="mr-2" /> Import from Phone
+                        <Smartphone size={16} className="mr-2" /> Import
                       </Button>
                    </div>
-
-                   {/* Right side actions */}
-                   <div className="flex gap-3">
-                      {isAdding && (
+                   <div className="flex gap-2">
+                      {isAdding && hasContacts && (
                         <Button size="sm" variant="ghost" onClick={() => setIsAdding(false)}>
-                          <X size={16} className="mr-2" /> Cancel
+                          Cancel
                         </Button>
                       )}
                       <Button size="sm" onClick={processInput} isLoading={isProcessing} disabled={!rawInput.trim()}>
-                        <Upload size={16} className="mr-2" /> {isAdding ? 'Append' : 'Parse List'}
+                        <Upload size={16} className="mr-2" /> {isAdding ? 'Append' : 'Parse'}
                       </Button>
                    </div>
                 </div>
              </div>
            </div>
-        ) : (
-          <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center animate-slide-up relative overflow-hidden shadow-lg min-h-[300px]">
-             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-             
-             <div className="w-24 h-24 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mb-6 ring-4 ring-emerald-50 dark:ring-emerald-500/20">
-               <CheckCircle2 size={48} className="text-emerald-600 dark:text-emerald-500" />
-             </div>
-             
-             <h3 className="text-4xl font-black text-zinc-900 dark:text-white mb-2">{state.contacts.length}</h3>
-             <p className="text-zinc-400 text-xs uppercase tracking-widest font-bold">Contacts Ready</p>
-             
-             <div className="mt-8 flex gap-3 z-10 w-full max-w-xs">
-                <Button variant="danger" size="sm" fullWidth onClick={() => dispatch({ type: 'CLEAR_CONTACTS' })}>
-                  <Trash2 size={16} className="mr-2" /> Clear
-                </Button>
-                <Button variant="secondary" size="sm" fullWidth onClick={() => { setIsAdding(true); setRawInput(''); }}>
-                   <FileText size={16} className="mr-2" /> Add More
-                </Button>
-             </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Fixed Bottom Action */}
       {!isAdding && (
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent">
-          <Button 
-            fullWidth 
-            size="xl" 
-            disabled={!hasContacts} 
-            onClick={() => dispatch({ type: 'SET_STEP', payload: 'compose' })}
-            className={hasContacts ? "shadow-xl shadow-emerald-500/20" : ""}
-          >
-            Next Step <ArrowRight size={20} className="ml-2" />
-          </Button>
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent z-10">
+          <div className="flex gap-3">
+             {hasContacts && (
+                <Button 
+                   fullWidth 
+                   variant="danger"
+                   size="xl"
+                   onClick={() => { if(confirm('Clear all contacts?')) dispatch({ type: 'CLEAR_CONTACTS' }); }}
+                   className="flex-[0.3]"
+                >
+                   <Trash2 size={20} />
+                </Button>
+             )}
+             <Button 
+               fullWidth 
+               size="xl" 
+               disabled={!hasContacts} 
+               onClick={() => dispatch({ type: 'SET_STEP', payload: 'compose' })}
+               className={hasContacts ? "shadow-xl shadow-emerald-500/20 flex-1" : "flex-1"}
+             >
+               Compose Message <ArrowRight size={20} className="ml-2" />
+             </Button>
+          </div>
         </div>
       )}
     </div>

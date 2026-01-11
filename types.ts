@@ -42,6 +42,7 @@ export type Action =
   | { type: 'UPDATE_CONFIG'; payload: Partial<AutomationConfig> }
   | { type: 'TOGGLE_THEME' }
   | { type: 'NEXT_CONTACT' }
+  | { type: 'SET_CONTACT_INDEX'; payload: number }
   | { type: 'RESET_RUNNER' } // Resets index to 0 and status to pending
   | { type: 'LOAD_STATE'; payload: Partial<AppState> };
 

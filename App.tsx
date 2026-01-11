@@ -42,6 +42,7 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, contacts: newContacts };
     }
     case 'NEXT_CONTACT': return { ...state, currentContactIndex: state.currentContactIndex + 1 };
+    case 'SET_CONTACT_INDEX': return { ...state, currentContactIndex: action.payload };
     case 'RESET_RUNNER': 
       return { 
         ...state, 
