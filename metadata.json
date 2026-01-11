@@ -1,0 +1,5 @@
+{
+  "name": "WhatsFlow Sender",
+  "description": "A privacy-focused, manual workflow tool for managing WhatsApp messaging to multiple contacts efficiently on Android.",
+  "requestFramePermissions": []
+}
