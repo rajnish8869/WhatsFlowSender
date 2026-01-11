@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
-import { Upload, Trash2, ArrowRight, FileText, CheckCircle2, X } from 'lucide-react';
+import { Upload, Trash2, ArrowRight, FileText, CheckCircle2, X, Smartphone } from 'lucide-react';
+import { Contacts } from '@capacitor-community/contacts';
+import { Capacitor } from '@capacitor/core';
 
 interface Props {
   state: AppState;
@@ -70,6 +72,70 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
     }, 150);
   };
 
+  const handleNativeImport = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      alert("This feature is only available on Android/iOS devices.");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const permission = await Contacts.requestPermissions();
+      if (permission.contacts !== 'granted') {
+        logger.error('Contacts permission denied');
+        setIsProcessing(false);
+        return;
+      }
+
+      const result = await Contacts.getContacts({
+        projection: {
+          name: true,
+          phones: true,
+        },
+      });
+
+      const newContacts: Contact[] = [];
+      const seenNumbers = new Set<string>(
+         isAdding ? state.contacts.map(c => c.number) : []
+      );
+
+      for (const contact of result.contacts) {
+        if (contact.phones && contact.phones.length > 0) {
+          // Flatten all numbers for this contact
+          for (const phoneObj of contact.phones) {
+            const rawNumber = phoneObj.number || '';
+            const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
+            
+            if (cleanNumber.length > 6 && !seenNumbers.has(cleanNumber)) {
+               seenNumbers.add(cleanNumber);
+               newContacts.push({
+                 id: crypto.randomUUID(),
+                 name: contact.displayName || contact.name?.display || 'Unknown',
+                 number: cleanNumber,
+                 status: 'pending'
+               });
+            }
+          }
+        }
+      }
+
+      if (newContacts.length > 0) {
+        const finalList = isAdding ? [...state.contacts, ...newContacts] : newContacts;
+        dispatch({ type: 'IMPORT_CONTACTS', payload: finalList });
+        logger.success(`Imported ${newContacts.length} contacts from device`);
+        setIsAdding(false);
+      } else {
+        logger.warning('No new contacts with valid numbers found.');
+      }
+
+    } catch (e) {
+      console.error(e);
+      logger.error('Failed to access contacts');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const hasContacts = state.contacts.length > 0;
   const showInput = !hasContacts || isAdding;
 
@@ -83,7 +149,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
             {isAdding ? 'Add More Contacts' : 'Target Audience'}
           </h2>
           <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
-            Paste your list below. We support <strong>CSV</strong>, <strong>Excel columns</strong>, or simple text.
+            Paste your list below or import directly from your phone's address book.
           </p>
         </div>
 
@@ -99,15 +165,26 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                   spellCheck={false}
                   autoFocus={isAdding}
                 />
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-3">
-                   {isAdding && (
-                     <Button size="sm" variant="ghost" onClick={() => setIsAdding(false)}>
-                       <X size={16} className="mr-2" /> Cancel
-                     </Button>
-                   )}
-                   <Button size="sm" onClick={processInput} isLoading={isProcessing} disabled={!rawInput.trim()}>
-                     <Upload size={16} className="mr-2" /> {isAdding ? 'Append' : 'Parse List'}
-                   </Button>
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                   
+                   {/* Left side actions */}
+                   <div className="flex gap-2">
+                      <Button size="sm" variant="secondary" onClick={handleNativeImport} isLoading={isProcessing}>
+                        <Smartphone size={16} className="mr-2" /> Import from Phone
+                      </Button>
+                   </div>
+
+                   {/* Right side actions */}
+                   <div className="flex gap-3">
+                      {isAdding && (
+                        <Button size="sm" variant="ghost" onClick={() => setIsAdding(false)}>
+                          <X size={16} className="mr-2" /> Cancel
+                        </Button>
+                      )}
+                      <Button size="sm" onClick={processInput} isLoading={isProcessing} disabled={!rawInput.trim()}>
+                        <Upload size={16} className="mr-2" /> {isAdding ? 'Append' : 'Parse List'}
+                      </Button>
+                   </div>
                 </div>
              </div>
            </div>
