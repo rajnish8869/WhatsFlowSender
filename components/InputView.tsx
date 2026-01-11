@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
-import { Trash2, ArrowRight, Smartphone, Search } from 'lucide-react';
+import { Trash2, ArrowRight, Smartphone, Search, CheckCircle2 } from 'lucide-react';
 import { Contacts } from '@capacitor-community/contacts';
 import { Capacitor } from '@capacitor/core';
 
@@ -35,16 +35,17 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
       });
 
       const newContacts: Contact[] = [];
+      // Create a set of existing numbers to prevent duplicates
       const seenNumbers = new Set<string>(state.contacts.map(c => c.number));
 
       for (const contact of result.contacts) {
-        // Strict filtering: Must have phones, must have a number, length check
+        // Strict filtering: Must have phones, must have a number
         if (contact.phones && contact.phones.length > 0) {
           for (const phoneObj of contact.phones) {
             const rawNumber = phoneObj.number || '';
             const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
             
-            // Basic WhatsApp validation heuristic: Number exists and has sufficient length
+            // Heuristic: Valid length and not already added
             if (cleanNumber.length > 6 && !seenNumbers.has(cleanNumber)) {
                seenNumbers.add(cleanNumber);
                newContacts.push({
@@ -59,12 +60,11 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
       }
 
       if (newContacts.length > 0) {
-        // Always Append for native import in this flow
         const finalList = [...state.contacts, ...newContacts];
         dispatch({ type: 'IMPORT_CONTACTS', payload: finalList });
-        logger.success(`Imported ${newContacts.length} contacts from device`);
+        logger.success(`Imported ${newContacts.length} contacts`);
       } else {
-        logger.warning('No new contacts with valid numbers found.');
+        logger.warning('No new valid contacts found.');
       }
     } catch (e) {
       console.error(e);
@@ -74,9 +74,20 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
     }
   };
 
-  const removeContact = (id: string) => {
+  const removeContact = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent row selection
     const updated = state.contacts.filter(c => c.id !== id);
     dispatch({ type: 'IMPORT_CONTACTS', payload: updated });
+    // If we removed the selected contact, reset selection
+    if (state.contacts[state.currentContactIndex]?.id === id) {
+       dispatch({ type: 'SET_CONTACT_INDEX', payload: -1 });
+    }
+  };
+
+  const toggleSelection = (index: number) => {
+    // If clicking the same one, deselect. Otherwise select new one.
+    const newIndex = state.currentContactIndex === index ? -1 : index;
+    dispatch({ type: 'SET_CONTACT_INDEX', payload: newIndex });
   };
 
   // Filter logic
@@ -86,6 +97,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
   );
 
   const hasContacts = state.contacts.length > 0;
+  const selectedContact = state.currentContactIndex >= 0 ? state.contacts[state.currentContactIndex] : null;
 
   return (
     <div className="h-full flex flex-col animate-fade-in relative bg-zinc-50 dark:bg-zinc-950">
@@ -100,8 +112,9 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                   {state.contacts.length}
                 </span>
               </h2>
+              <p className="text-xs text-zinc-500 mb-2">Select a contact below to start sending from that point.</p>
               
-              <div className="relative mt-4">
+              <div className="relative mt-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
                 <input 
                   type="text" 
@@ -119,22 +132,45 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                   <p>No contacts match your search.</p>
                 </div>
               ) : (
-                filteredContacts.map((contact) => (
-                  <div key={contact.id} className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                     <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0">
-                           {contact.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                           <p className="font-semibold text-zinc-900 dark:text-white truncate text-sm">{contact.name}</p>
-                           <p className="text-xs text-zinc-500 font-mono truncate">{contact.number}</p>
-                        </div>
-                     </div>
-                     <button onClick={() => removeContact(contact.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                     </button>
-                  </div>
-                ))
+                filteredContacts.map((contact, idx) => {
+                  // Find the actual index in the main state.contacts array to ensure selection maps correctly even when filtered
+                  const actualIndex = state.contacts.findIndex(c => c.id === contact.id);
+                  const isSelected = actualIndex === state.currentContactIndex;
+                  
+                  return (
+                    <div 
+                      key={contact.id} 
+                      onClick={() => toggleSelection(actualIndex)}
+                      className={`flex items-center justify-between p-3 border rounded-xl shadow-sm transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 ring-1 ring-emerald-500' 
+                          : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-emerald-200 dark:hover:border-emerald-800'
+                      }`}
+                    >
+                       <div className="flex items-center gap-3 overflow-hidden">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 transition-colors ${
+                             isSelected 
+                              ? 'bg-emerald-500 text-white' 
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'
+                          }`}>
+                             {isSelected ? <CheckCircle2 size={20} /> : contact.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                             <p className={`font-semibold truncate text-sm ${isSelected ? 'text-emerald-900 dark:text-emerald-100' : 'text-zinc-900 dark:text-white'}`}>
+                               {contact.name}
+                             </p>
+                             <p className="text-xs text-zinc-500 font-mono truncate">{contact.number}</p>
+                          </div>
+                       </div>
+                       <button 
+                          onClick={(e) => removeContact(e, contact.id)} 
+                          className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors z-10"
+                       >
+                          <Trash2 size={16} />
+                       </button>
+                    </div>
+                  );
+                })
               )}
               {/* Spacer for bottom button */}
               <div className="h-24" />
@@ -166,7 +202,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
 
       {/* Fixed Bottom Action */}
       {hasContacts && (
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent z-10">
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent z-20">
           <div className="flex gap-3">
              <Button 
                 fullWidth 
@@ -184,7 +220,10 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                onClick={() => dispatch({ type: 'SET_STEP', payload: 'compose' })}
                className="shadow-xl shadow-emerald-500/20 flex-1"
              >
-               Compose Message <ArrowRight size={20} className="ml-2" />
+               {selectedContact 
+                 ? <span>Compose for <span className="font-bold">{selectedContact.name}</span></span>
+                 : "Compose Message"
+               } <ArrowRight size={20} className="ml-2" />
              </Button>
           </div>
         </div>
