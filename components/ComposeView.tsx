@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { AppState } from '../types';
 import { Button } from './ui/Button';
-import { ArrowRight, Wand2, Paperclip, X, Image as ImageIcon } from 'lucide-react';
+import { ArrowRight, Wand2, Paperclip, X, Image as ImageIcon, Hand } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -44,7 +44,7 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
     <div className="h-full flex flex-col animate-fade-in relative">
        
        {/* Scrollable Editor Area */}
-       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 pb-24">
+       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 pb-32">
           <div className="flex-none">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1">Craft Message</h2>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm">Personalize your blast. Attach media if needed.</p>
@@ -92,14 +92,24 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
        </div>
 
        {/* Fixed Bottom Action */}
-       <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent">
+       <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent flex flex-col sm:flex-row gap-3">
+          <Button 
+            fullWidth 
+            size="xl" 
+            variant="secondary"
+            disabled={!isValid} 
+            onClick={() => dispatch({ type: 'SET_STEP', payload: 'manual' })}
+            className="dark:bg-zinc-900"
+          >
+            <Hand size={20} className="mr-2 text-zinc-500" /> Manual Mode
+          </Button>
           <Button 
             fullWidth 
             size="xl" 
             disabled={!isValid} 
             onClick={() => dispatch({ type: 'SET_STEP', payload: 'running' })}
           >
-            Initialize Run <ArrowRight size={20} className="ml-2" />
+            Auto Run <ArrowRight size={20} className="ml-2" />
           </Button>
        </div>
     </div>

@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
 import { 
-  X, Send, SkipForward, Check, Home, Phone, Share2, MessageSquare 
+  X, Send, SkipForward, Check, Home, Phone, Share2, MessageSquare, ArrowRight 
 } from 'lucide-react';
 
 interface SessionModeProps {
@@ -12,12 +12,18 @@ interface SessionModeProps {
 }
 
 export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) => {
-  const activeContacts = useMemo(() => appState.contacts.filter(c => c.selected), [appState.contacts]);
+  const activeContacts = useMemo(() => appState.contacts, [appState.contacts]);
   const currentContact = activeContacts[appState.currentContactIndex];
+  // Calculate progress relative to total list
   const progress = activeContacts.length > 0 ? ((appState.currentContactIndex) / activeContacts.length) * 100 : 100;
   
-  const sentCount = activeContacts.filter(c => c.status === 'sent').length;
-  const skippedCount = activeContacts.filter(c => c.status === 'skipped').length;
+  // Auto-redirect to summary if done
+  useEffect(() => {
+    // If we've processed all contacts (index >= length)
+    if (appState.currentContactIndex >= activeContacts.length) {
+        dispatch({ type: 'SET_STEP', payload: 'summary' });
+    }
+  }, [appState.currentContactIndex, activeContacts.length, dispatch]);
 
   const handleSendText = () => {
     if (!currentContact) return;
@@ -50,37 +56,13 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
 
   const next = (status: Contact['status']) => {
     if (!currentContact) return;
-    dispatch({ type: 'UPDATE_CONTACT_STATUS', payload: { id: currentContact.id, status } });
+    dispatch({ type: 'UPDATE_CONTACT_STATUS', payload: { index: appState.currentContactIndex, status } });
     dispatch({ type: 'NEXT_CONTACT' });
   };
 
-  // --- Summary View ---
+  // Guard against null currentContact during transition
   if (!currentContact) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] animate-fade-in text-center">
-        <div className="w-24 h-24 rounded-full bg-green-500 flex items-center justify-center shadow-xl shadow-green-500/30 mb-8 animate-slide-up">
-            <Check size={48} className="text-white" strokeWidth={3} />
-        </div>
-        
-        <h2 className="text-3xl font-extrabold text-zinc-900 dark:text-white mb-2">All Done!</h2>
-        <p className="text-zinc-500 dark:text-zinc-400 mb-10 text-lg">Session completed successfully.</p>
-
-        <div className="grid grid-cols-2 gap-4 w-full mb-10">
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl shadow-sm border border-zinc-100 dark:border-zinc-800">
-                <p className="text-3xl font-bold text-green-600 dark:text-green-500">{sentCount}</p>
-                <p className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">Sent</p>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl shadow-sm border border-zinc-100 dark:border-zinc-800">
-                <p className="text-3xl font-bold text-zinc-600 dark:text-zinc-400">{skippedCount}</p>
-                <p className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">Skipped</p>
-            </div>
-        </div>
-
-        <Button onClick={() => dispatch({ type: 'END_SESSION' })} size="xl" fullWidth variant="outline" className="mb-4">
-            <Home size={20} className="mr-2" /> Return Home
-        </Button>
-      </div>
-    );
+      return null;
   }
 
   // --- Active Session ---
@@ -93,7 +75,7 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
 
         {/* Top Controls */}
         <div className="flex items-center justify-between mb-4">
-            <button onClick={() => confirm('Exit session?') && dispatch({ type: 'END_SESSION' })} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+            <button onClick={() => confirm('Exit session?') && dispatch({ type: 'SET_STEP', payload: 'compose' })} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
                 <X size={24} />
             </button>
             <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full">
@@ -103,7 +85,7 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col justify-center py-4">
+        <div className="flex-1 flex flex-col justify-center py-4 overflow-y-auto custom-scrollbar">
             <div className="relative w-full">
                 {/* Decoration Card Behind */}
                 <div className="absolute top-4 left-4 right-4 bottom-[-10px] bg-zinc-50 dark:bg-zinc-800 rounded-[2.5rem] scale-95 opacity-50 -z-10" />

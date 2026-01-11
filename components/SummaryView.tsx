@@ -33,7 +33,7 @@ export const SummaryView: React.FC<Props> = ({ state, dispatch }) => {
        </div>
 
        <div className="w-full max-w-sm space-y-3">
-          <Button fullWidth size="xl" onClick={() => { dispatch({ type: 'RESET_RUNNER' }); dispatch({ type: 'SET_STEP', payload: 'running' }); }}>
+          <Button fullWidth size="xl" onClick={() => { dispatch({ type: 'RESET_RUNNER' }); dispatch({ type: 'SET_STEP', payload: 'compose' }); }}>
              <RotateCcw size={20} className="mr-2" /> Restart Same List
           </Button>
           <Button fullWidth size="lg" variant="ghost" onClick={() => dispatch({ type: 'SET_STEP', payload: 'input' })}>

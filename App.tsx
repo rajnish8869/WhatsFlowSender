@@ -3,6 +3,7 @@ import { AppState, Action, AppStep } from './types';
 import { InputView } from './components/InputView';
 import { ComposeView } from './components/ComposeView';
 import { LiveRunner } from './components/LiveRunner';
+import { SessionMode } from './components/SessionMode';
 import { SummaryView } from './components/SummaryView';
 import { logger } from './utils/logger';
 import { STORAGE_KEY, INITIAL_MESSAGE } from './constants';
@@ -91,7 +92,7 @@ export default function App() {
 
   const handleBack = () => {
     if (state.step === 'compose') dispatch({ type: 'SET_STEP', payload: 'input' });
-    if (state.step === 'running') {
+    if (state.step === 'running' || state.step === 'manual') {
       if(confirm("Stop running session and go back to editor?")) {
         dispatch({ type: 'SET_STEP', payload: 'compose' });
       }
@@ -104,13 +105,16 @@ export default function App() {
       case 'input': return <InputView state={state} dispatch={dispatch} />;
       case 'compose': return <ComposeView state={state} dispatch={dispatch} />;
       case 'running': return <LiveRunner state={state} dispatch={dispatch} />;
+      case 'manual': return <SessionMode appState={state} dispatch={dispatch} />;
       case 'summary': return <SummaryView state={state} dispatch={dispatch} />;
       default: return null;
     }
   };
 
   const steps: AppStep[] = ['input', 'compose', 'running'];
-  const currentStepIndex = steps.indexOf(state.step);
+  // Map 'manual' to 'running' for the progress indicator
+  const displayStep = state.step === 'manual' ? 'running' : state.step;
+  const currentStepIndex = steps.indexOf(displayStep as AppStep);
 
   return (
     <div className="fixed inset-0 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white flex justify-center font-sans overflow-hidden transition-colors duration-300">
@@ -135,7 +139,7 @@ export default function App() {
                   W
                 </div>
              )}
-            <h1 className="text-lg font-bold tracking-tight">WhatsFlow <span className="text-emerald-500 text-xs uppercase tracking-widest ml-1 font-extrabold">Auto</span></h1>
+            <h1 className="text-lg font-bold tracking-tight">WhatsFlow <span className="text-emerald-500 text-xs uppercase tracking-widest ml-1 font-extrabold">{state.step === 'manual' ? 'Manual' : 'Auto'}</span></h1>
           </div>
           
           <button 
@@ -165,7 +169,7 @@ export default function App() {
                 <span className={`text-[10px] uppercase font-bold tracking-wider transition-colors duration-300 ${
                   idx <= currentStepIndex ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-600'
                 }`}>
-                  {s}
+                  {s === 'running' && state.step === 'manual' ? 'Manual' : s}
                 </span>
               </div>
             ))}

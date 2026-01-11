@@ -20,7 +20,7 @@ export interface AutomationConfig {
   batchSize: number;
 }
 
-export type AppStep = 'input' | 'compose' | 'running' | 'summary';
+export type AppStep = 'input' | 'compose' | 'running' | 'manual' | 'summary';
 
 export interface AppState {
   step: AppStep;

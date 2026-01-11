@@ -110,7 +110,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch }) => {
                seenNumbers.add(cleanNumber);
                newContacts.push({
                  id: crypto.randomUUID(),
-                 name: contact.displayName || contact.name?.display || 'Unknown',
+                 name: contact.name?.display || 'Unknown',
                  number: cleanNumber,
                  status: 'pending'
                });
