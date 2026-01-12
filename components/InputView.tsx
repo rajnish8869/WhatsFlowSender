@@ -19,26 +19,24 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
     
     if (!rawQuery) return state.contacts;
 
-    // Prepare for Name Search (Tokenized)
+    // 1. Prepare for Name Search (Tokenized)
     // "Bob Smith" -> ["bob", "smith"]
     // Matches if ALL tokens are present in the name (order independent)
-    const tokens = rawQuery.split(/\s+/);
+    const tokens = rawQuery.split(/\s+/).filter(t => t.length > 0);
 
-    // Prepare for Number Search (Cleaned)
+    // 2. Prepare for Number Search (Cleaned)
     const cleanQuery = rawQuery.replace(/[^0-9]/g, '');
-    const hasLetters = /[a-z]/i.test(rawQuery);
     
-    // Heuristic: Avoid matching single digits in mixed queries like "User 1" against phone numbers
-    // If the query has letters, only match number if we have a significant sequence of digits (e.g. 3+)
-    // If query is pure numbers/symbols (no letters), match even short sequences (e.g. "9")
-    const shouldCheckNumber = cleanQuery.length > 0 && (!hasLetters || cleanQuery.length >= 3);
+    // STRICTER RULE: Only search phone numbers if the user has typed at least 3 digits.
+    // This prevents searching for "1" from matching 90% of your contact list.
+    const shouldCheckNumber = cleanQuery.length >= 3;
 
     return state.contacts.filter(c => {
-      // Name Match
+      // A) Name Match: Check if every typed word exists in the contact name
       const name = c.name.toLowerCase();
-      const nameMatch = tokens.every(token => name.includes(token));
+      const nameMatch = tokens.length > 0 && tokens.every(token => name.includes(token));
 
-      // Number Match
+      // B) Number Match: strict substring match on cleaned numbers
       const numberMatch = shouldCheckNumber && c.number.includes(cleanQuery);
 
       return nameMatch || numberMatch;
@@ -50,8 +48,45 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
   const isAllSelected = totalCount > 0 && selectedCount === totalCount;
 
   const toggleSelectAll = () => {
-    dispatch({ type: 'TOGGLE_ALL_SELECTION', payload: !isAllSelected });
+    // If filtering, we only toggle the visible ones?
+    // Requirement is usually "Select All" applies to the current view or all?
+    // "Select & Send" usually implies selecting from the list. 
+    // If a search is active, "Select All" usually selects the filtered results.
+    // Let's make it smart: If search is active, toggle only filtered. If cleared, toggle all.
+    
+    const targetIds = filteredContacts.map(c => c.id);
+    const allFilteredAreSelected = filteredContacts.length > 0 && filteredContacts.every(c => c.selected);
+    
+    // We can't use the simple TOGGLE_ALL_SELECTION payload for filtered lists easily without a new action,
+    // or we iterate. For simplicity and robustness, let's iterate dispatch or add a specific action.
+    // Given the constraints, let's just toggle individually or use the bulk toggle if no search.
+    
+    if (searchQuery.trim() === '') {
+        dispatch({ type: 'TOGGLE_ALL_SELECTION', payload: !isAllSelected });
+    } else {
+        // Bulk toggle for filtered list
+        // We will simulate this by iterating, or ideally adding a BULK_TOGGLE action.
+        // For now, let's just iterate to be safe and compatible with existing reducer.
+        // Optimization: If list is huge, this is slow, but for <5000 contacts it's instant.
+        targetIds.forEach(id => {
+            // If we are selecting all, set selected. If deselecting, set unselected.
+            // But we need to check the current state of "allFilteredAreSelected"
+            // If ALL filtered are selected -> Deselect them.
+            // If SOME or NONE are selected -> Select them.
+            
+            // This requires we know the specific target state.
+            const shouldSelect = !allFilteredAreSelected;
+            
+            // We only need to dispatch if the state is different
+            const contact = filteredContacts.find(c => c.id === id);
+            if (contact && contact.selected !== shouldSelect) {
+                dispatch({ type: 'TOGGLE_CONTACT_SELECTION', payload: id });
+            }
+        });
+    }
   };
+
+  const isAllFilteredSelected = filteredContacts.length > 0 && filteredContacts.every(c => c.selected);
 
   const hasContacts = state.contacts.length > 0;
 
@@ -67,7 +102,6 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
     );
   }
 
-  // Permission Denied State
   if (state.permissionStatus === 'denied' && Capacitor.isNativePlatform()) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950 text-center animate-fade-in">
@@ -85,7 +119,6 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
     );
   }
 
-  // No Contacts Found (Empty State)
   if (!state.isLoadingContacts && !hasContacts) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950 text-center animate-fade-in">
@@ -111,14 +144,17 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
           <div className="flex items-end justify-between mb-4">
              <div>
                <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">Select Recipients</h2>
-               <p className="text-xs text-zinc-500 mt-1">Select who should receive the message.</p>
+               <p className="text-xs text-zinc-500 mt-1">
+                 {searchQuery ? `Found ${filteredContacts.length} contacts` : 'Select who should receive the message.'}
+               </p>
              </div>
              <button 
                 onClick={toggleSelectAll}
                 className="text-sm font-semibold text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 transition-colors flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
              >
-                {isAllSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-                {isAllSelected ? 'Deselect All' : 'Select All'}
+                {/* Visual state depends on whether we are filtering or not */}
+                {(searchQuery ? isAllFilteredSelected : isAllSelected) ? <CheckSquare size={16} /> : <Square size={16} />}
+                {(searchQuery ? isAllFilteredSelected : isAllSelected) ? 'Deselect All' : 'Select All'}
              </button>
           </div>
           
@@ -128,7 +164,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
               type="text" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
+              placeholder="Search by name or number..."
               className="w-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
             />
           </div>
@@ -137,7 +173,7 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2 custom-scrollbar">
           {filteredContacts.length === 0 ? (
             <div className="text-center py-10 text-zinc-400">
-              <p>No contacts match your search.</p>
+              <p>No contacts match "{searchQuery}"</p>
             </div>
           ) : (
             filteredContacts.map((contact) => (
