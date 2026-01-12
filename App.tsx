@@ -58,11 +58,6 @@ function reducer(state: AppState, action: Action): AppState {
 
     // Runner Logic
     case 'UPDATE_CONTACT_STATUS': {
-      // Find index by ID if payload provides ID, or use logic from payload
-      // Refactoring: payload now sends ID to be safer with filtered lists, 
-      // but if legacy code sends index, we must handle it. 
-      // NOTE: Current payload in types.ts was changed to { id: string } in this update? 
-      // Let's support the ID based update for robustness.
       return {
         ...state,
         contacts: state.contacts.map(c => 
@@ -82,9 +77,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'LOAD_STATE': 
       const { attachment, isLoadingContacts, permissionStatus, ...rest } = action.payload;
       const mergedConfig = { ...state.config, ...(action.payload.config || {}) };
-      // Don't overwrite contacts if we are currently loading new ones, 
-      // but for persistence strategies, usually we want to load what was there.
-      // However, if auto-import is active, that will supersede.
       return { ...state, ...rest, config: mergedConfig, attachment: null }; 
     default: return state;
   }
@@ -99,11 +91,6 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // We do not load contacts from local storage if we want auto-refresh,
-        // but if the user customized selections, we might want to keep them.
-        // For this specific request "Auto import on start", we will prioritize the native fetch.
-        // So we load preferences (message, config) but maybe not contacts if we want a fresh sync?
-        // Let's load everything to be safe, then let the Auto-Import overwrite if needed.
         dispatch({ type: 'LOAD_STATE', payload: parsed });
       }
     } catch (e) { logger.error('Failed to load saved state.'); }
@@ -150,38 +137,45 @@ export default function App() {
       const newContacts: Contact[] = [];
       const seenNumbers = new Set<string>();
 
+      // Logic: Iterate all contacts. For each phone number found:
+      // 1. Clean it (remove non-digits).
+      // 2. Check if this number has already been seen (Global deduplication).
+      // 3. If seen, SKIP it (Prioritizes the first contact/number encountered).
+      // 4. If not seen, add to list and mark as seen.
+      
       for (const contact of result.contacts) {
         if (contact.phones && contact.phones.length > 0) {
           for (const phoneObj of contact.phones) {
             const rawNumber = phoneObj.number || '';
             const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
             
-            // Basic validation
-            if (cleanNumber.length > 6 && !seenNumbers.has(cleanNumber)) {
+            // Basic validation: ensure number is long enough to be valid
+            if (cleanNumber.length > 6) {
+               if (seenNumbers.has(cleanNumber)) {
+                 // Duplicate number detected. 
+                 // Even if name is different, we skip to keep the first one.
+                 continue; 
+               }
+
                seenNumbers.add(cleanNumber);
+               
                newContacts.push({
                  id: contact.contactId || crypto.randomUUID(),
                  name: contact.name?.display || 'Unknown',
                  number: cleanNumber,
                  status: 'pending',
-                 selected: false // Default to unselected so user consciously chooses? Or Select All?
-                                 // Requirement says "select multiple contacts". 
-                                 // Let's default to false to prevent accidental spam.
+                 selected: false
                });
             }
           }
         }
       }
 
-      // Merge strategy: Replace completely on fresh load to ensure we have latest phone book state?
-      // Or merge to keep status?
-      // Requirement: "All contacts must be automatically imported".
-      // Let's simple replace to ensure sync.
       if (newContacts.length > 0) {
-        // Sort alphabetically
+        // Sort alphabetically by name for better UX
         newContacts.sort((a, b) => a.name.localeCompare(b.name));
         dispatch({ type: 'IMPORT_CONTACTS', payload: newContacts });
-        logger.success(`Synced ${newContacts.length} contacts`);
+        logger.success(`Synced ${newContacts.length} unique contacts`);
       } else {
         logger.warning('No valid contacts found on device.');
       }

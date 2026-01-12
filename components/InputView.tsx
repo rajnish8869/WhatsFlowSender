@@ -15,10 +15,17 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
 
   // Filter logic
   const filteredContacts = useMemo(() => {
-    return state.contacts.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      c.number.includes(searchQuery)
-    );
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+    // Create a version of the query with only digits to match against stored numbers
+    const cleanQuery = normalizedQuery.replace(/[^0-9]/g, '');
+
+    return state.contacts.filter(c => {
+      const nameMatch = c.name.toLowerCase().includes(normalizedQuery);
+      // Only check for number match if the query actually contains digits
+      const numberMatch = cleanQuery.length > 0 && c.number.includes(cleanQuery);
+      
+      return nameMatch || numberMatch;
+    });
   }, [state.contacts, searchQuery]);
 
   const selectedCount = state.contacts.filter(c => c.selected).length;
