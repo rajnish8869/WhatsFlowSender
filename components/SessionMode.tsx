@@ -184,7 +184,7 @@ export const SessionMode: React.FC<SessionModeProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full animate-fade-in relative pb-44 safe-bottom">
+    <div className="flex flex-col h-full animate-fade-in relative bg-zinc-50 dark:bg-zinc-950">
       {/* Contact List Drawer/Modal */}
       {(showList || !currentContact) && (
         <div className="absolute inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col animate-slide-up">
@@ -215,7 +215,7 @@ export const SessionMode: React.FC<SessionModeProps> = ({
               />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 pb-44 space-y-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
             {activeContacts.map((c, idx) => {
               if (
                 searchQuery &&
@@ -270,15 +270,15 @@ export const SessionMode: React.FC<SessionModeProps> = ({
       )}
 
       {/* Progress Strip */}
-      <div className="absolute -top-6 -left-6 -right-6 h-1 bg-zinc-100 dark:bg-zinc-800">
+      <div className="h-1 bg-zinc-100 dark:bg-zinc-800 w-full flex-none">
         <div
-          className="h-full bg-primary-500 transition-all duration-300"
+          className="h-full bg-emerald-500 transition-all duration-300"
           style={{ width: `${progress}%` }}
         />
       </div>
 
       {/* Top Controls */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex-none px-6 pt-4 pb-2 flex items-center justify-between">
         <button
           onClick={() =>
             confirm("Exit session?") &&
@@ -289,13 +289,13 @@ export const SessionMode: React.FC<SessionModeProps> = ({
           <X size={24} />
         </button>
         <div className="flex gap-2">
-          <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full">
+          <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
             {currentContact ? appState.currentContactIndex + 1 : 0} /{" "}
             {activeContacts.length}
           </div>
           <button
             onClick={() => setShowList(true)}
-            className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1"
+            className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors flex items-center gap-1 border border-zinc-200 dark:border-zinc-800"
           >
             <List size={14} /> <span className="text-xs font-bold">List</span>
           </button>
@@ -306,59 +306,62 @@ export const SessionMode: React.FC<SessionModeProps> = ({
       {/* Content - Only render if currentContact exists */}
       {currentContact ? (
         <>
-          <div className="flex-1 flex flex-col justify-center py-4 pb-44 overflow-y-auto custom-scrollbar">
-            <div className="relative w-full">
-              {/* Decoration Card Behind */}
-              <div className="absolute top-4 left-4 right-4 bottom-[-10px] bg-zinc-50 dark:bg-zinc-800 rounded-[2.5rem] scale-95 opacity-50 -z-10" />
+          {/* Main Scrollable Content */}
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 flex flex-col items-center">
+             <div className="w-full max-w-sm flex flex-col items-center gap-4 my-auto">
+                <div className="relative w-full">
+                  {/* Decoration Card Behind */}
+                  <div className="absolute top-4 left-4 right-4 bottom-[-10px] bg-white dark:bg-zinc-900 rounded-[2.5rem] scale-95 opacity-50 -z-10 border border-zinc-100 dark:border-zinc-800" />
 
-              {/* Main Card */}
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-zinc-200/50 dark:shadow-none flex flex-col items-center text-center">
-                {/* Avatar */}
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900/40 dark:to-primary-800/20 flex items-center justify-center mb-5 shadow-inner ring-4 ring-white dark:ring-zinc-900">
-                  <span className="text-3xl font-bold text-primary-700 dark:text-primary-300">
-                    {currentContact.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                  {/* Main Card */}
+                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-6 sm:p-8 shadow-xl flex flex-col items-center text-center">
+                    {/* Avatar */}
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/20 flex items-center justify-center mb-5 shadow-inner ring-4 ring-white dark:ring-zinc-950">
+                      <span className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                        {currentContact.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
 
-                <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 line-clamp-1 break-all px-2">
-                  {currentContact.name}
-                </h2>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-sm font-mono mb-4">
-                  <Phone size={12} />
-                  {currentContact.number}
-                </div>
+                    <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 line-clamp-1 break-all px-2">
+                      {currentContact.name}
+                    </h2>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-sm font-mono mb-4">
+                      <Phone size={12} />
+                      {currentContact.number}
+                    </div>
 
-                {/* Attachment Indicator */}
-                {appState.attachment && (
-                  <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold border border-blue-100 dark:border-blue-800">
-                    <Share2 size={12} />
-                    <span>
-                      Including{" "}
-                      {appState.attachment.type.startsWith("image/")
-                        ? "Image"
-                        : "File"}
-                    </span>
-                  </div>
-                )}
-
-                {/* Message Preview */}
-                <div className="w-full bg-zinc-50 dark:bg-black/40 rounded-2xl p-4 text-left mb-2 relative group border border-zinc-100 dark:border-zinc-800/50">
-                  <div className="absolute -top-2.5 left-4 px-1.5 bg-white dark:bg-zinc-900 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                    Preview
-                  </div>
-                  <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto custom-scrollbar">
-                    {appState.messageTemplate.replace(
-                      /{name}/g,
-                      currentContact.name
+                    {/* Attachment Indicator */}
+                    {appState.attachment && (
+                      <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold border border-blue-100 dark:border-blue-800">
+                        <Share2 size={12} />
+                        <span>
+                          Including{" "}
+                          {appState.attachment.type.startsWith("image/")
+                            ? "Image"
+                            : "File"}
+                        </span>
+                      </div>
                     )}
-                  </p>
+
+                    {/* Message Preview */}
+                    <div className="w-full bg-zinc-50 dark:bg-zinc-950/50 rounded-2xl p-4 text-left mb-2 relative group border border-zinc-100 dark:border-zinc-800/50">
+                      <div className="absolute -top-2.5 left-4 px-1.5 bg-white dark:bg-zinc-900 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                        Preview
+                      </div>
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto custom-scrollbar">
+                        {appState.messageTemplate.replace(
+                          /{name}/g,
+                          currentContact.name
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+             </div>
           </div>
 
-          {/* Bottom Actions */}
-          <div className="mt-auto space-y-3 pt-4">
+          {/* Bottom Actions - Fixed/Flex-none */}
+          <div className="flex-none p-6 pt-2 space-y-3 bg-zinc-50/90 dark:bg-zinc-950/90 backdrop-blur-sm safe-bottom z-10">
             {appState.attachment ? (
               <div className="space-y-3">
                 <Button
