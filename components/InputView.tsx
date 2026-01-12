@@ -15,15 +15,32 @@ export const InputView: React.FC<Props> = ({ state, dispatch, onRetryLoad }) => 
 
   // Filter logic
   const filteredContacts = useMemo(() => {
-    const normalizedQuery = searchQuery.toLowerCase().trim();
-    // Create a version of the query with only digits to match against stored numbers
-    const cleanQuery = normalizedQuery.replace(/[^0-9]/g, '');
+    const rawQuery = searchQuery.trim().toLowerCase();
+    
+    if (!rawQuery) return state.contacts;
+
+    // Prepare for Name Search (Tokenized)
+    // "Bob Smith" -> ["bob", "smith"]
+    // Matches if ALL tokens are present in the name (order independent)
+    const tokens = rawQuery.split(/\s+/);
+
+    // Prepare for Number Search (Cleaned)
+    const cleanQuery = rawQuery.replace(/[^0-9]/g, '');
+    const hasLetters = /[a-z]/i.test(rawQuery);
+    
+    // Heuristic: Avoid matching single digits in mixed queries like "User 1" against phone numbers
+    // If the query has letters, only match number if we have a significant sequence of digits (e.g. 3+)
+    // If query is pure numbers/symbols (no letters), match even short sequences (e.g. "9")
+    const shouldCheckNumber = cleanQuery.length > 0 && (!hasLetters || cleanQuery.length >= 3);
 
     return state.contacts.filter(c => {
-      const nameMatch = c.name.toLowerCase().includes(normalizedQuery);
-      // Only check for number match if the query actually contains digits
-      const numberMatch = cleanQuery.length > 0 && c.number.includes(cleanQuery);
-      
+      // Name Match
+      const name = c.name.toLowerCase();
+      const nameMatch = tokens.every(token => name.includes(token));
+
+      // Number Match
+      const numberMatch = shouldCheckNumber && c.number.includes(cleanQuery);
+
       return nameMatch || numberMatch;
     });
   }, [state.contacts, searchQuery]);
