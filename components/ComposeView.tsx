@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { AppState } from '../types';
 import { Button } from './ui/Button';
-import { ArrowRight, Wand2, Paperclip, X, Image as ImageIcon, Hand } from 'lucide-react';
+import { ArrowRight, Wand2, Paperclip, X, Image as ImageIcon, Hand, Users } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -38,16 +38,25 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
     }
   };
 
-  const isValid = state.messageTemplate.trim().length > 0 || state.attachment !== null;
+  const selectedCount = state.contacts.filter(c => c.selected).length;
+  const isValid = selectedCount > 0 && (state.messageTemplate.trim().length > 0 || state.attachment !== null);
 
   return (
     <div className="h-full flex flex-col animate-fade-in relative">
        
        {/* Scrollable Editor Area */}
        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 pb-32">
-          <div className="flex-none">
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1">Craft Message</h2>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">Personalize your blast. Attach media if needed.</p>
+          <div className="flex-none flex justify-between items-start">
+            <div>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1">Craft Message</h2>
+                <p className="text-zinc-500 dark:text-zinc-400 text-sm">Personalize your blast. Attach media if needed.</p>
+            </div>
+            {selectedCount > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800">
+                    <Users size={14} />
+                    <span className="text-xs font-bold">{selectedCount} Selected</span>
+                </div>
+            )}
           </div>
 
           <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden flex flex-col relative focus-within:ring-2 focus-within:ring-emerald-500/50 transition-all shadow-sm min-h-[250px]">
@@ -89,6 +98,12 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
                </div>
              )}
           </div>
+          
+          {selectedCount === 0 && (
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm border border-red-200 dark:border-red-900/50 text-center">
+                Please select at least one contact in step 1 to proceed.
+            </div>
+          )}
        </div>
 
        {/* Fixed Bottom Action */}

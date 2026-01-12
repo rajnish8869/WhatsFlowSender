@@ -3,7 +3,7 @@ import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
 import { 
-  X, Send, SkipForward, Check, Phone, Share2, MessageSquare, List, Search
+  X, Send, SkipForward, Check, Phone, Share2, MessageSquare, List, Search, Ghost
 } from 'lucide-react';
 
 interface SessionModeProps {
@@ -15,17 +15,18 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
   const [showList, setShowList] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const activeContacts = useMemo(() => appState.contacts, [appState.contacts]);
-  // Allow currentContact to be undefined if index is -1
+  // Filter only selected contacts
+  const activeContacts = useMemo(() => appState.contacts.filter(c => c.selected), [appState.contacts]);
+  
+  // Initialize index if needed
+  useEffect(() => {
+    if (appState.currentContactIndex === -1 && activeContacts.length > 0) {
+        dispatch({ type: 'SET_CONTACT_INDEX', payload: 0 });
+    }
+  }, [activeContacts.length]);
+
   const currentContact = appState.currentContactIndex >= 0 ? activeContacts[appState.currentContactIndex] : undefined;
   
-  // Force show list if no contact is selected
-  useEffect(() => {
-    if (appState.currentContactIndex === -1) {
-        setShowList(true);
-    }
-  }, [appState.currentContactIndex]);
-
   // Calculate progress
   const progress = activeContacts.length > 0 && appState.currentContactIndex >= 0
     ? ((appState.currentContactIndex) / activeContacts.length) * 100 
@@ -33,7 +34,7 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
   
   // Auto-redirect to summary if done
   useEffect(() => {
-    if (appState.currentContactIndex >= activeContacts.length) {
+    if (appState.currentContactIndex >= 0 && appState.currentContactIndex >= activeContacts.length) {
         dispatch({ type: 'SET_STEP', payload: 'summary' });
     }
   }, [appState.currentContactIndex, activeContacts.length, dispatch]);
@@ -69,9 +70,10 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
 
   const next = (status: Contact['status']) => {
     if (!currentContact) return;
-    dispatch({ type: 'UPDATE_CONTACT_STATUS', payload: { index: appState.currentContactIndex, status } });
+    // Send ID, not index, because we are using a filtered list but updating the global list
+    dispatch({ type: 'UPDATE_CONTACT_STATUS', payload: { id: currentContact.id, status } });
     
-    // Check if there is a next contact to select, otherwise Summary
+    // Check if there is a next contact
     if (appState.currentContactIndex + 1 < activeContacts.length) {
          dispatch({ type: 'NEXT_CONTACT' });
     } else {
@@ -84,20 +86,14 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
     setShowList(false);
   };
 
-  // If no contact selected and list is closed (shouldn't happen due to useEffect, but for safety), show nothing or loading
-  if (!currentContact && !showList) {
-      return null; 
-  }
-
   return (
     <div className="flex flex-col h-full animate-fade-in relative pb-8">
         
-        {/* Contact List Drawer/Modal - Visible if showList is true OR if no contact is selected */}
+        {/* Contact List Drawer/Modal */}
         {(showList || !currentContact) && (
            <div className="absolute inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col animate-slide-up">
               <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-900">
-                 <h3 className="font-bold text-lg">Select Contact to Send</h3>
-                 {/* Only allow closing if a contact is actually selected */}
+                 <h3 className="font-bold text-lg">Send Queue ({activeContacts.length})</h3>
                  {currentContact && (
                     <button onClick={() => setShowList(false)} className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-full">
                         <X size={20} />
@@ -168,7 +164,7 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
         </div>
 
         {/* Content - Only render if currentContact exists */}
-        {currentContact && (
+        {currentContact ? (
           <>
             <div className="flex-1 flex flex-col justify-center py-4 overflow-y-auto custom-scrollbar">
                 <div className="relative w-full">
@@ -210,13 +206,6 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
                                 {appState.messageTemplate.replace(/{name}/g, currentContact.name)}
                             </p>
                         </div>
-
-                        {/* Disclaimer for File Sharing */}
-                        {appState.attachment && (
-                            <p className="text-[10px] text-zinc-400 mt-2 max-w-xs leading-tight">
-                              Note: You must select <strong>WhatsApp</strong> & then the contact <strong>{currentContact.name}</strong> manually when sharing files.
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>
@@ -265,6 +254,13 @@ export const SessionMode: React.FC<SessionModeProps> = ({ appState, dispatch }) 
                 </div>
             </div>
           </>
+        ) : (
+           <div className="flex-1 flex flex-col items-center justify-center opacity-50">
+              <div className="w-20 h-20 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mb-4">
+                 <Ghost size={32} className="text-zinc-400" />
+              </div>
+              <p className="text-zinc-500">Queue is empty...</p>
+           </div>
         )}
     </div>
   );

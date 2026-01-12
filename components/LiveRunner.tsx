@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { AppState, Contact } from '../types';
 import { Button } from './ui/Button';
 import { logger } from '../utils/logger';
-import { Play, Pause, Square, ExternalLink, RefreshCw, Send, Check, AlertCircle } from 'lucide-react';
+import { Play, Pause, Square, ExternalLink, Loader2 } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -16,6 +16,9 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
   const [isWaitingForReturn, setIsWaitingForReturn] = useState(false);
   const [manualTriggerNeeded, setManualTriggerNeeded] = useState(false);
   
+  // Create a queue of selected contacts
+  const activeContacts = useMemo(() => state.contacts.filter(c => c.selected), [state.contacts]);
+  
   // Refs to track state inside event listeners
   const currentIndexRef = useRef(state.currentContactIndex);
   const isRunningRef = useRef(isRunning);
@@ -26,9 +29,22 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { isWaitingForReturnRef.current = isWaitingForReturn; }, [isWaitingForReturn]);
 
-  const total = state.contacts.length;
-  const current = state.contacts[state.currentContactIndex];
-  const progress = total > 0 ? (state.currentContactIndex / total) * 100 : 0;
+  const total = activeContacts.length;
+  // Map the global currentContactIndex (which is 0..activeContacts.length) to the specific contact in active list
+  const current = state.currentContactIndex >= 0 ? activeContacts[state.currentContactIndex] : undefined;
+  const progress = total > 0 && state.currentContactIndex >= 0 ? (state.currentContactIndex / total) * 100 : 0;
+
+  // --- INITIALIZATION LOGIC ---
+  useEffect(() => {
+    // If invalid index (start), reset to 0
+    if (state.currentContactIndex === -1 && total > 0) {
+        dispatch({ type: 'SET_CONTACT_INDEX', payload: 0 });
+    } else if (total === 0) {
+        dispatch({ type: 'SET_STEP', payload: 'input' }); // No selected contacts
+    } else if (state.currentContactIndex >= total) {
+        dispatch({ type: 'SET_STEP', payload: 'summary' });
+    }
+  }, [total]);
 
   // --- AUTOMATION CORE ---
   useEffect(() => {
@@ -37,11 +53,15 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
       if (document.visibilityState === 'visible' && isWaitingForReturnRef.current && isRunningRef.current) {
         logger.info('App focused. Resuming flow...');
         
-        // 1. Mark previous contact as sent
-        dispatch({ 
-          type: 'UPDATE_CONTACT_STATUS', 
-          payload: { index: currentIndexRef.current, status: 'sent' } 
-        });
+        // 1. Mark previous contact as sent using ID because index might shift in some architectures (though here it is stable list)
+        // We need the ID of the contact we just processed.
+        const contactJustProcessed = activeContacts[currentIndexRef.current];
+        if (contactJustProcessed) {
+            dispatch({ 
+                type: 'UPDATE_CONTACT_STATUS', 
+                payload: { id: contactJustProcessed.id, status: 'sent' } 
+            });
+        }
 
         setIsWaitingForReturn(false);
         setManualTriggerNeeded(false);
@@ -73,7 +93,7 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [total, state.config.delay]);
+  }, [total, state.config.delay, activeContacts]);
 
   // --- TRIGGER LOGIC ---
   useEffect(() => {
@@ -82,7 +102,7 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
     if (isRunning && !isWaitingForReturn && current && countdown === 0 && !manualTriggerNeeded) {
       attemptOpen(current);
     }
-  }, [state.currentContactIndex, isRunning, isWaitingForReturn, countdown]); 
+  }, [state.currentContactIndex, isRunning, isWaitingForReturn, countdown, current]); 
 
   const attemptOpen = (contact: Contact) => {
     const msg = state.messageTemplate.replace(/{name}/g, contact.name);
@@ -103,13 +123,12 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
          // Text Mode
          const url = `https://wa.me/${contact.number.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`;
          
-         // Try to open window. Note: This might block in some browsers if not user-initiated.
+         // Try to open window.
          const win = window.open(url, '_blank');
          
          if (win) {
             setIsWaitingForReturn(true);
          } else {
-            // Popup blocked or failed
             console.warn("Auto-open blocked, requesting manual interaction");
             setManualTriggerNeeded(true);
          }
@@ -122,13 +141,12 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
 
   const manualOpen = () => {
     if (current) {
-        setManualTriggerNeeded(false); // Reset flag
-        // Force the open
+        setManualTriggerNeeded(false); 
         const msg = state.messageTemplate.replace(/{name}/g, current.name);
         const url = `https://wa.me/${current.number.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`;
         window.open(url, '_blank');
         setIsWaitingForReturn(true);
-        setIsRunning(true); // Ensure we stay running
+        setIsRunning(true);
     }
   };
 
@@ -140,12 +158,20 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
       setManualTriggerNeeded(false);
     } else {
       setIsRunning(true);
-      // If we are starting fresh (index 0 or resumed), we might need to trigger immediately if not waiting
       if (!isWaitingForReturn && countdown === 0) {
-         // attemptOpen will be triggered by useEffect if conditions met
+         // attemptOpen will be triggered by useEffect
       }
     }
   };
+
+  if (!current) {
+    return (
+        <div className="h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+            <Loader2 className="animate-spin text-emerald-500 mb-4" size={32} />
+            <p className="text-zinc-500">Initializing Queue...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col relative bg-zinc-50 dark:bg-zinc-950 transition-colors duration-300 overflow-hidden">
@@ -160,20 +186,9 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
           
           {/* Status Ring / Countdown */}
           <div className="relative mb-8 group flex-none">
-             {/* Ring SVG - Responsive sizing */}
-             <svg className="w-56 h-56 sm:w-64 sm:h-64 transform -rotate-90 drop-shadow-2xl">
-                <circle cx="50%" cy="50%" r="45%" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-zinc-200 dark:text-zinc-900" />
-                <circle cx="50%" cy="50%" r="45%" stroke="currentColor" strokeWidth="12" fill="transparent" 
-                  className={`transition-all duration-500 ease-linear ${isRunning ? 'text-emerald-500' : 'text-zinc-400 dark:text-zinc-700'}`}
-                  strokeDasharray="283%" /* approximate for 45% radius if using percentage based calc, simplified: */
-                  // Reverting to specific px calculation for reliability with viewbox
-                />
-                {/* Standard ViewBox SVG implementation for better control */}
-             </svg>
-             {/* Proper SVG Implementation for Resizing */}
-             <div className="absolute inset-0">
+             <div className="w-56 h-56 sm:w-64 sm:h-64 relative">
                <svg viewBox="0 0 256 256" className="w-full h-full transform -rotate-90">
-                  <circle cx="128" cy="128" r="110" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-zinc-200 dark:text-zinc-900" />
+                  <circle cx="128" cy="128" r="110" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-zinc-200 dark:text-zinc-800" />
                   <circle cx="128" cy="128" r="110" stroke="currentColor" strokeWidth="16" fill="transparent" 
                     className={`transition-all duration-500 ease-linear ${isRunning ? 'text-emerald-500' : 'text-zinc-400 dark:text-zinc-700'}`}
                     strokeDasharray={691} 
@@ -181,20 +196,20 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
                     strokeLinecap="round"
                   />
                </svg>
-             </div>
              
-             {/* Center Content */}
-             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {countdown > 0 ? (
-                  <div className="text-5xl font-black text-emerald-500 font-mono animate-bounce">{countdown}s</div>
-                ) : (
-                  <>
-                    <span className={`text-6xl font-black ${isRunning ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-600'}`}>
-                        {state.currentContactIndex + 1}
-                    </span>
-                    <span className="text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest text-xs mt-2">OF {total}</span>
-                  </>
-                )}
+               {/* Center Content */}
+               <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  {countdown > 0 ? (
+                    <div className="text-5xl font-black text-emerald-500 font-mono animate-bounce">{countdown}s</div>
+                  ) : (
+                    <>
+                      <span className={`text-6xl font-black ${isRunning ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-600'}`}>
+                          {state.currentContactIndex + 1}
+                      </span>
+                      <span className="text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest text-xs mt-2">OF {total}</span>
+                    </>
+                  )}
+               </div>
              </div>
           </div>
 

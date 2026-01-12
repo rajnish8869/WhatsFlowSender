@@ -30,21 +30,27 @@ export interface AppState {
   currentContactIndex: number;
   attachment: Attachment | null;
   config: AutomationConfig;
+  isLoadingContacts: boolean;
+  permissionStatus: 'granted' | 'denied' | 'prompt' | 'unknown';
 }
 
 export type Action =
   | { type: 'SET_STEP'; payload: AppStep }
   | { type: 'IMPORT_CONTACTS'; payload: Contact[] }
   | { type: 'CLEAR_CONTACTS' }
-  | { type: 'UPDATE_CONTACT_STATUS'; payload: { index: number; status: Contact['status'] } }
+  | { type: 'UPDATE_CONTACT_STATUS'; payload: { id: string; status: Contact['status'] } }
   | { type: 'SET_MESSAGE'; payload: string }
   | { type: 'SET_ATTACHMENT'; payload: Attachment | null }
   | { type: 'UPDATE_CONFIG'; payload: Partial<AutomationConfig> }
   | { type: 'TOGGLE_THEME' }
   | { type: 'NEXT_CONTACT' }
   | { type: 'SET_CONTACT_INDEX'; payload: number }
-  | { type: 'RESET_RUNNER' } // Resets index to 0 and status to pending
-  | { type: 'LOAD_STATE'; payload: Partial<AppState> };
+  | { type: 'RESET_RUNNER' }
+  | { type: 'LOAD_STATE'; payload: Partial<AppState> }
+  | { type: 'SET_LOADING_CONTACTS'; payload: boolean }
+  | { type: 'SET_PERMISSION_STATUS'; payload: AppState['permissionStatus'] }
+  | { type: 'TOGGLE_CONTACT_SELECTION'; payload: string } // ID
+  | { type: 'TOGGLE_ALL_SELECTION'; payload: boolean }; // Select all or none
 
 export interface LogEntry {
   id: string;
