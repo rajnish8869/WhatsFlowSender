@@ -1,8 +1,11 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { AppState, Contact } from '../types';
-import { Button } from './ui/Button';
-import { logger } from '../utils/logger';
-import { Play, Pause, Square, ExternalLink, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { AppState, Contact } from "../types";
+import { Button } from "./ui/Button";
+import { logger } from "../utils/logger";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import { Play, Pause, Square, ExternalLink, Loader2 } from "lucide-react";
 
 interface Props {
   state: AppState;
@@ -15,34 +18,49 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
   const [countdown, setCountdown] = useState(0);
   const [isWaitingForReturn, setIsWaitingForReturn] = useState(false);
   const [manualTriggerNeeded, setManualTriggerNeeded] = useState(false);
-  
+
   // Create a queue of selected contacts
-  const activeContacts = useMemo(() => state.contacts.filter(c => c.selected), [state.contacts]);
-  
+  const activeContacts = useMemo(
+    () => state.contacts.filter((c) => c.selected),
+    [state.contacts]
+  );
+
   // Refs to track state inside event listeners
   const currentIndexRef = useRef(state.currentContactIndex);
   const isRunningRef = useRef(isRunning);
   const isWaitingForReturnRef = useRef(isWaitingForReturn);
 
   // Sync refs
-  useEffect(() => { currentIndexRef.current = state.currentContactIndex; }, [state.currentContactIndex]);
-  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
-  useEffect(() => { isWaitingForReturnRef.current = isWaitingForReturn; }, [isWaitingForReturn]);
+  useEffect(() => {
+    currentIndexRef.current = state.currentContactIndex;
+  }, [state.currentContactIndex]);
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+  useEffect(() => {
+    isWaitingForReturnRef.current = isWaitingForReturn;
+  }, [isWaitingForReturn]);
 
   const total = activeContacts.length;
   // Map the global currentContactIndex (which is 0..activeContacts.length) to the specific contact in active list
-  const current = state.currentContactIndex >= 0 ? activeContacts[state.currentContactIndex] : undefined;
-  const progress = total > 0 && state.currentContactIndex >= 0 ? (state.currentContactIndex / total) * 100 : 0;
+  const current =
+    state.currentContactIndex >= 0
+      ? activeContacts[state.currentContactIndex]
+      : undefined;
+  const progress =
+    total > 0 && state.currentContactIndex >= 0
+      ? (state.currentContactIndex / total) * 100
+      : 0;
 
   // --- INITIALIZATION LOGIC ---
   useEffect(() => {
     // If invalid index (start), reset to 0
     if (state.currentContactIndex === -1 && total > 0) {
-        dispatch({ type: 'SET_CONTACT_INDEX', payload: 0 });
+      dispatch({ type: "SET_CONTACT_INDEX", payload: 0 });
     } else if (total === 0) {
-        dispatch({ type: 'SET_STEP', payload: 'input' }); // No selected contacts
+      dispatch({ type: "SET_STEP", payload: "input" }); // No selected contacts
     } else if (state.currentContactIndex >= total) {
-        dispatch({ type: 'SET_STEP', payload: 'summary' });
+      dispatch({ type: "SET_STEP", payload: "summary" });
     }
   }, [total]);
 
@@ -50,17 +68,21 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       // Logic: If visible AND we were waiting for user to return AND we are currently "running"
-      if (document.visibilityState === 'visible' && isWaitingForReturnRef.current && isRunningRef.current) {
-        logger.info('App focused. Resuming flow...');
-        
+      if (
+        document.visibilityState === "visible" &&
+        isWaitingForReturnRef.current &&
+        isRunningRef.current
+      ) {
+        logger.info("App focused. Resuming flow...");
+
         // 1. Mark previous contact as sent using ID because index might shift in some architectures (though here it is stable list)
         // We need the ID of the contact we just processed.
         const contactJustProcessed = activeContacts[currentIndexRef.current];
         if (contactJustProcessed) {
-            dispatch({ 
-                type: 'UPDATE_CONTACT_STATUS', 
-                payload: { id: contactJustProcessed.id, status: 'sent' } 
-            });
+          dispatch({
+            type: "UPDATE_CONTACT_STATUS",
+            payload: { id: contactJustProcessed.id, status: "sent" },
+          });
         }
 
         setIsWaitingForReturn(false);
@@ -69,84 +91,166 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
         // 2. Start countdown for next contact
         let timer = state.config.delay;
         setCountdown(timer);
-        
+
         const interval = setInterval(() => {
           timer -= 0.1;
           setCountdown(Math.max(0, parseFloat(timer.toFixed(1))));
-          
+
           if (timer <= 0) {
             clearInterval(interval);
             setCountdown(0);
-            
+
             // 3. Move index. The effect downstream will trigger the open.
             const nextIndex = currentIndexRef.current + 1;
             if (nextIndex < total) {
-              dispatch({ type: 'NEXT_CONTACT' });
+              dispatch({ type: "NEXT_CONTACT" });
             } else {
               setIsRunning(false);
-              dispatch({ type: 'SET_STEP', payload: 'summary' });
+              dispatch({ type: "SET_STEP", payload: "summary" });
             }
           }
         }, 100);
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [total, state.config.delay, activeContacts]);
 
   // --- TRIGGER LOGIC ---
   useEffect(() => {
     // Only trigger if running, NOT waiting, countdown done, and valid contact
     // This runs when `state.currentContactIndex` updates after the countdown
-    if (isRunning && !isWaitingForReturn && current && countdown === 0 && !manualTriggerNeeded) {
+    if (
+      isRunning &&
+      !isWaitingForReturn &&
+      current &&
+      countdown === 0 &&
+      !manualTriggerNeeded
+    ) {
       attemptOpen(current);
     }
-  }, [state.currentContactIndex, isRunning, isWaitingForReturn, countdown, current]); 
+  }, [
+    state.currentContactIndex,
+    isRunning,
+    isWaitingForReturn,
+    countdown,
+    current,
+  ]);
 
-  const attemptOpen = (contact: Contact) => {
+  const attemptOpen = async (contact: Contact) => {
     const msg = state.messageTemplate.replace(/{name}/g, contact.name);
-    
+
     try {
       if (state.attachment) {
-         if (navigator.share && navigator.canShare({ files: [state.attachment.file] })) {
-           navigator.share({ files: [state.attachment.file], text: msg })
-             .then(() => setIsWaitingForReturn(true))
-             .catch((err) => {
-               logger.error('Share failed/cancelled');
-               setIsRunning(false); // Pause on error
-             });
-         } else {
-           setManualTriggerNeeded(true); // Fallback to manual
-         }
-      } else {
-         // Text Mode
-         const url = `https://wa.me/${contact.number.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`;
-         
-         // Try to open window.
-         const win = window.open(url, '_blank');
-         
-         if (win) {
+        // Try Web Share API first
+        try {
+          if (
+            navigator.share &&
+            navigator.canShare &&
+            navigator.canShare({ files: [state.attachment.file] })
+          ) {
+            await navigator.share({
+              files: [state.attachment.file],
+              text: msg,
+            });
             setIsWaitingForReturn(true);
-         } else {
-            console.warn("Auto-open blocked, requesting manual interaction");
-            setManualTriggerNeeded(true);
-         }
+            return;
+          }
+        } catch (e) {
+          logger.info(
+            "Web Share API unavailable, trying native Share fallback"
+          );
+        }
+
+        // Capacitor native fallback for Android/iOS
+        if (Capacitor.isNativePlatform() && state.attachment.file) {
+          try {
+            const file: File = state.attachment.file as File;
+            const arrayBuffer = await file.arrayBuffer();
+            // Convert ArrayBuffer -> base64 in chunks to avoid call stack overflow
+            const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+              const bytes = new Uint8Array(buffer);
+              const chunkSize = 0x8000;
+              let binary = "";
+              for (let i = 0; i < bytes.length; i += chunkSize) {
+                const chunk = bytes.subarray(i, i + chunkSize);
+                binary += String.fromCharCode.apply(null, Array.from(chunk));
+              }
+              return btoa(binary);
+            };
+
+            const base64 = arrayBufferToBase64(arrayBuffer);
+            const sharedPath = `shared/${file.name}`;
+
+            // Ensure the parent folder exists in the Cache directory
+            try {
+              await Filesystem.mkdir({
+                path: "shared",
+                directory: Directory.Cache,
+                recursive: true,
+              });
+            } catch (e) {
+              // ignore if it already exists or if mkdir is unsupported
+            }
+
+            await Filesystem.writeFile({
+              path: sharedPath,
+              data: base64,
+              directory: Directory.Cache,
+            });
+            const uriResult = await Filesystem.getUri({
+              directory: Directory.Cache,
+              path: sharedPath,
+            });
+            const fileUri = uriResult.uri;
+            await Share.share({ title: file.name, text: msg, url: fileUri });
+            setIsWaitingForReturn(true);
+            return;
+          } catch (err) {
+            logger.error("Native share fallback failed");
+            console.error(err);
+            setIsRunning(false);
+            return;
+          }
+        }
+
+        setManualTriggerNeeded(true); // Fallback to manual
+      } else {
+        // Text Mode
+        const url = `https://wa.me/${contact.number.replace(
+          /[^0-9]/g,
+          ""
+        )}?text=${encodeURIComponent(msg)}`;
+
+        // Try to open window.
+        const win = window.open(url, "_blank");
+
+        if (win) {
+          setIsWaitingForReturn(true);
+        } else {
+          console.warn("Auto-open blocked, requesting manual interaction");
+          setManualTriggerNeeded(true);
+        }
       }
     } catch (e) {
-      logger.error('Error opening target');
+      logger.error("Error opening target");
       setManualTriggerNeeded(true);
     }
   };
 
   const manualOpen = () => {
     if (current) {
-        setManualTriggerNeeded(false); 
-        const msg = state.messageTemplate.replace(/{name}/g, current.name);
-        const url = `https://wa.me/${current.number.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`;
-        window.open(url, '_blank');
-        setIsWaitingForReturn(true);
-        setIsRunning(true);
+      setManualTriggerNeeded(false);
+      const msg = state.messageTemplate.replace(/{name}/g, current.name);
+      const url = `https://wa.me/${current.number.replace(
+        /[^0-9]/g,
+        ""
+      )}?text=${encodeURIComponent(msg)}`;
+      window.open(url, "_blank");
+      setIsWaitingForReturn(true);
+      setIsRunning(true);
     }
   };
 
@@ -159,127 +263,215 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
     } else {
       setIsRunning(true);
       if (!isWaitingForReturn && countdown === 0) {
-         // attemptOpen will be triggered by useEffect
+        // attemptOpen will be triggered by useEffect
       }
     }
   };
 
   if (!current) {
     return (
-        <div className="h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-            <Loader2 className="animate-spin text-emerald-500 mb-4" size={32} />
-            <p className="text-zinc-500">Initializing Queue...</p>
-        </div>
+      <div className="h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <Loader2 className="animate-spin text-emerald-500 mb-4" size={32} />
+        <p className="text-zinc-500">Initializing Queue...</p>
+      </div>
     );
   }
 
   return (
     <div className="h-full flex flex-col relative bg-zinc-50 dark:bg-zinc-950 transition-colors duration-300 overflow-hidden">
-       
-       {/* Background Pulse */}
-       {isRunning && !manualTriggerNeeded && (
-         <div className="absolute inset-0 bg-emerald-500/5 animate-pulse z-0 pointer-events-none" />
-       )}
+      {/* Background Pulse */}
+      {isRunning && !manualTriggerNeeded && (
+        <div className="absolute inset-0 bg-emerald-500/5 animate-pulse z-0 pointer-events-none" />
+      )}
 
-       {/* Main Content Area */}
-       <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 w-full overflow-y-auto custom-scrollbar">
-          
-          {/* Status Ring / Countdown */}
-          <div className="relative mb-8 group flex-none">
-             <div className="w-56 h-56 sm:w-64 sm:h-64 relative">
-               <svg viewBox="0 0 256 256" className="w-full h-full transform -rotate-90">
-                  <circle cx="128" cy="128" r="110" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-zinc-200 dark:text-zinc-800" />
-                  <circle cx="128" cy="128" r="110" stroke="currentColor" strokeWidth="16" fill="transparent" 
-                    className={`transition-all duration-500 ease-linear ${isRunning ? 'text-emerald-500' : 'text-zinc-400 dark:text-zinc-700'}`}
-                    strokeDasharray={691} 
-                    strokeDashoffset={691 - (691 * progress) / 100} 
-                    strokeLinecap="round"
-                  />
-               </svg>
-             
-               {/* Center Content */}
-               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  {countdown > 0 ? (
-                    <div className="text-5xl font-black text-emerald-500 font-mono animate-bounce">{countdown}s</div>
-                  ) : (
-                    <>
-                      <span className={`text-6xl font-black ${isRunning ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-600'}`}>
-                          {state.currentContactIndex + 1}
-                      </span>
-                      <span className="text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest text-xs mt-2">OF {total}</span>
-                    </>
-                  )}
-               </div>
-             </div>
-          </div>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 pb-44 w-full overflow-y-auto custom-scrollbar">
+        {/* Status Ring / Countdown */}
+        <div className="relative mb-8 group flex-none">
+          <div className="w-56 h-56 sm:w-64 sm:h-64 relative">
+            <svg
+              viewBox="0 0 256 256"
+              className="w-full h-full transform -rotate-90"
+            >
+              <circle
+                cx="128"
+                cy="128"
+                r="110"
+                stroke="currentColor"
+                strokeWidth="16"
+                fill="transparent"
+                className="text-zinc-200 dark:text-zinc-800"
+              />
+              <circle
+                cx="128"
+                cy="128"
+                r="110"
+                stroke="currentColor"
+                strokeWidth="16"
+                fill="transparent"
+                className={`transition-all duration-500 ease-linear ${
+                  isRunning
+                    ? "text-emerald-500"
+                    : "text-zinc-400 dark:text-zinc-700"
+                }`}
+                strokeDasharray={691}
+                strokeDashoffset={691 - (691 * progress) / 100}
+                strokeLinecap="round"
+              />
+            </svg>
 
-          {/* Current Contact Card */}
-          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-center relative overflow-hidden shadow-xl flex-none">
-             {/* Dynamic Header Stripe */}
-             <div className={`absolute top-0 left-0 right-0 h-1.5 ${manualTriggerNeeded ? 'bg-amber-500 animate-pulse' : 'bg-gradient-to-r from-emerald-400 to-emerald-600'}`} />
-             
-             <h3 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 truncate">{current?.name}</h3>
-             <p className="text-emerald-600 dark:text-emerald-400 font-mono text-lg font-medium">{current?.number}</p>
-             
-             {/* State Messages */}
-             <div className="mt-6 h-12 flex items-center justify-center">
-                {manualTriggerNeeded ? (
-                   <Button onClick={manualOpen} size="sm" className="bg-amber-500 hover:bg-amber-600 text-white animate-pulse shadow-amber-500/50">
-                      <ExternalLink size={16} className="mr-2" /> Open WhatsApp Manually
-                   </Button>
-                ) : isWaitingForReturn ? (
-                   <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-full">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-                      <span className="text-xs font-bold uppercase tracking-wide">Waiting for Return</span>
-                   </div>
-                ) : isRunning && countdown > 0 ? (
-                    <span className="text-zinc-400 text-sm italic">Preparing next contact...</span>
-                ) : !isRunning && (
-                    <span className="text-zinc-400 text-sm">Paused</span>
-                )}
-             </div>
-          </div>
-
-       </div>
-
-       {/* Control Deck */}
-       <div className="p-6 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 z-20 pb-8 safe-bottom shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
-          <div className="flex items-center gap-4 mb-6">
-             <div className="flex-1 h-14 bg-zinc-100 dark:bg-zinc-950 rounded-2xl flex items-center px-4 justify-between border border-zinc-200 dark:border-zinc-800">
-                <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Auto-Delay</span>
-                <div className="flex items-center gap-3">
-                   <button 
-                     onClick={() => dispatch({ type: 'UPDATE_CONFIG', payload: { delay: Math.max(0.5, state.config.delay - 0.5) }})} 
-                     className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 text-zinc-500 hover:text-emerald-500 shadow-sm transition-colors text-lg font-medium"
-                   >-</button>
-                   <span className="text-base font-mono font-bold text-zinc-900 dark:text-white w-10 text-center">{state.config.delay}s</span>
-                   <button 
-                     onClick={() => dispatch({ type: 'UPDATE_CONFIG', payload: { delay: state.config.delay + 0.5 }})} 
-                     className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 text-zinc-500 hover:text-emerald-500 shadow-sm transition-colors text-lg font-medium"
-                   >+</button>
+            {/* Center Content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              {countdown > 0 ? (
+                <div className="text-5xl font-black text-emerald-500 font-mono animate-bounce">
+                  {countdown}s
                 </div>
-             </div>
+              ) : (
+                <>
+                  <span
+                    className={`text-6xl font-black ${
+                      isRunning
+                        ? "text-zinc-900 dark:text-white"
+                        : "text-zinc-400 dark:text-zinc-600"
+                    }`}
+                  >
+                    {state.currentContactIndex + 1}
+                  </span>
+                  <span className="text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest text-xs mt-2">
+                    OF {total}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
+        </div>
 
-          <div className="flex gap-3">
-             {isRunning ? (
-               <Button onClick={toggleRun} fullWidth size="xl" variant="secondary" className="bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20">
-                  <Pause size={24} className="mr-2 fill-current" /> Pause
-               </Button>
-             ) : (
-               <Button onClick={toggleRun} fullWidth size="xl" className="bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30">
-                  <Play size={24} className="mr-2 fill-current" /> 
-                  {state.currentContactIndex === 0 ? 'Start Auto-Run' : 'Resume Run'}
-               </Button>
-             )}
-             
-             {!isRunning && (
-               <Button onClick={() => { if(confirm("Cancel current run and return to editor?")) dispatch({ type: 'SET_STEP', payload: 'compose' })}} size="xl" variant="ghost" className="aspect-square px-0 w-16">
-                 <Square size={20} className="fill-zinc-400" />
-               </Button>
-             )}
+        {/* Current Contact Card */}
+        <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-center relative overflow-hidden shadow-xl flex-none">
+          {/* Dynamic Header Stripe */}
+          <div
+            className={`absolute top-0 left-0 right-0 h-1.5 ${
+              manualTriggerNeeded
+                ? "bg-amber-500 animate-pulse"
+                : "bg-gradient-to-r from-emerald-400 to-emerald-600"
+            }`}
+          />
+
+          <h3 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 truncate">
+            {current?.name}
+          </h3>
+          <p className="text-emerald-600 dark:text-emerald-400 font-mono text-lg font-medium">
+            {current?.number}
+          </p>
+
+          {/* State Messages */}
+          <div className="mt-6 h-12 flex items-center justify-center">
+            {manualTriggerNeeded ? (
+              <Button
+                onClick={manualOpen}
+                size="sm"
+                className="bg-amber-500 hover:bg-amber-600 text-white animate-pulse shadow-amber-500/50"
+              >
+                <ExternalLink size={16} className="mr-2" /> Open WhatsApp
+                Manually
+              </Button>
+            ) : isWaitingForReturn ? (
+              <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-full">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                <span className="text-xs font-bold uppercase tracking-wide">
+                  Waiting for Return
+                </span>
+              </div>
+            ) : isRunning && countdown > 0 ? (
+              <span className="text-zinc-400 text-sm italic">
+                Preparing next contact...
+              </span>
+            ) : (
+              !isRunning && (
+                <span className="text-zinc-400 text-sm">Paused</span>
+              )
+            )}
           </div>
-       </div>
+        </div>
+      </div>
+
+      {/* Control Deck */}
+      <div className="p-6 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 z-20 pb-8 safe-bottom shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex-1 h-14 bg-zinc-100 dark:bg-zinc-950 rounded-2xl flex items-center px-4 justify-between border border-zinc-200 dark:border-zinc-800">
+            <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">
+              Auto-Delay
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() =>
+                  dispatch({
+                    type: "UPDATE_CONFIG",
+                    payload: { delay: Math.max(0.5, state.config.delay - 0.5) },
+                  })
+                }
+                className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 text-zinc-500 hover:text-emerald-500 shadow-sm transition-colors text-lg font-medium"
+              >
+                -
+              </button>
+              <span className="text-base font-mono font-bold text-zinc-900 dark:text-white w-10 text-center">
+                {state.config.delay}s
+              </span>
+              <button
+                onClick={() =>
+                  dispatch({
+                    type: "UPDATE_CONFIG",
+                    payload: { delay: state.config.delay + 0.5 },
+                  })
+                }
+                className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 text-zinc-500 hover:text-emerald-500 shadow-sm transition-colors text-lg font-medium"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          {isRunning ? (
+            <Button
+              onClick={toggleRun}
+              fullWidth
+              size="xl"
+              variant="secondary"
+              className="bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
+            >
+              <Pause size={24} className="mr-2 fill-current" /> Pause
+            </Button>
+          ) : (
+            <Button
+              onClick={toggleRun}
+              fullWidth
+              size="xl"
+              className="bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30"
+            >
+              <Play size={24} className="mr-2 fill-current" />
+              {state.currentContactIndex === 0
+                ? "Start Auto-Run"
+                : "Resume Run"}
+            </Button>
+          )}
+
+          {!isRunning && (
+            <Button
+              onClick={() => {
+                if (confirm("Cancel current run and return to editor?"))
+                  dispatch({ type: "SET_STEP", payload: "compose" });
+              }}
+              size="xl"
+              variant="ghost"
+              className="aspect-square px-0 w-16"
+            >
+              <Square size={20} className="fill-zinc-400" />
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
