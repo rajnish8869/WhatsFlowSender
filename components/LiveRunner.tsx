@@ -285,125 +285,129 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
       )}
 
       {/* Main Content Area - Flex-1 to take available space, min-h-0 to allow scrolling inside if needed */}
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center z-10 w-full overflow-y-auto custom-scrollbar p-6">
-        
-        {/* Centered content wrapper */}
-        <div className="flex flex-col items-center w-full max-w-sm gap-8 my-auto">
+      <div className="flex-1 min-h-0 w-full overflow-y-auto custom-scrollbar">
+        {/* min-h-full + justify-center ensures it centers when possible, but scrolls when content overflows */}
+        <div className="min-h-full flex flex-col items-center justify-center p-6 py-8">
           
-          {/* Status Ring / Countdown */}
-          <div className="relative group flex-none">
-            <div className="w-56 h-56 sm:w-64 sm:h-64 relative">
-              <svg
-                viewBox="0 0 256 256"
-                className="w-full h-full transform -rotate-90"
-              >
-                <circle
-                  cx="128"
-                  cy="128"
-                  r="110"
-                  stroke="currentColor"
-                  strokeWidth="16"
-                  fill="transparent"
-                  className="text-zinc-200 dark:text-zinc-800"
-                />
-                <circle
-                  cx="128"
-                  cy="128"
-                  r="110"
-                  stroke="currentColor"
-                  strokeWidth="16"
-                  fill="transparent"
-                  className={`transition-all duration-500 ease-linear ${
-                    isRunning
-                      ? "text-emerald-500"
-                      : "text-zinc-400 dark:text-zinc-700"
-                  }`}
-                  strokeDasharray={691}
-                  strokeDashoffset={691 - (691 * progress) / 100}
-                  strokeLinecap="round"
-                />
-              </svg>
+          {/* Centered content wrapper */}
+          <div className="flex flex-col items-center w-full max-w-sm gap-6">
+            
+            {/* Status Ring / Countdown */}
+            <div className="relative group flex-none">
+              {/* Reduced size slightly to fit better on small screens (w-52 vs w-64) */}
+              <div className="w-52 h-52 relative">
+                <svg
+                  viewBox="0 0 256 256"
+                  className="w-full h-full transform -rotate-90"
+                >
+                  <circle
+                    cx="128"
+                    cy="128"
+                    r="110"
+                    stroke="currentColor"
+                    strokeWidth="16"
+                    fill="transparent"
+                    className="text-zinc-200 dark:text-zinc-800"
+                  />
+                  <circle
+                    cx="128"
+                    cy="128"
+                    r="110"
+                    stroke="currentColor"
+                    strokeWidth="16"
+                    fill="transparent"
+                    className={`transition-all duration-500 ease-linear ${
+                      isRunning
+                        ? "text-emerald-500"
+                        : "text-zinc-400 dark:text-zinc-700"
+                    }`}
+                    strokeDasharray={691}
+                    strokeDashoffset={691 - (691 * progress) / 100}
+                    strokeLinecap="round"
+                  />
+                </svg>
 
-              {/* Center Content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {countdown > 0 ? (
-                  <div className="text-5xl font-black text-emerald-500 font-mono animate-bounce">
-                    {countdown}s
-                  </div>
-                ) : (
-                  <>
-                    <span
-                      className={`text-6xl font-black ${
-                        isRunning
-                          ? "text-zinc-900 dark:text-white"
-                          : "text-zinc-400 dark:text-zinc-600"
-                      }`}
-                    >
-                      {state.currentContactIndex + 1}
-                    </span>
-                    <span className="text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest text-xs mt-2">
-                      OF {total}
-                    </span>
-                  </>
-                )}
+                {/* Center Content */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  {countdown > 0 ? (
+                    <div className="text-5xl font-black text-emerald-500 font-mono animate-bounce">
+                      {countdown}s
+                    </div>
+                  ) : (
+                    <>
+                      <span
+                        className={`text-6xl font-black ${
+                          isRunning
+                            ? "text-zinc-900 dark:text-white"
+                            : "text-zinc-400 dark:text-zinc-600"
+                        }`}
+                      >
+                        {state.currentContactIndex + 1}
+                      </span>
+                      <span className="text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest text-xs mt-2">
+                        OF {total}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Current Contact Card */}
-          <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-center relative overflow-hidden shadow-xl flex-none">
-            {/* Dynamic Header Stripe */}
-            <div
-              className={`absolute top-0 left-0 right-0 h-1.5 ${
-                manualTriggerNeeded
-                  ? "bg-amber-500 animate-pulse"
-                  : "bg-gradient-to-r from-emerald-400 to-emerald-600"
-              }`}
-            />
+            {/* Current Contact Card */}
+            <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-center relative overflow-hidden shadow-xl flex-none">
+              {/* Dynamic Header Stripe */}
+              <div
+                className={`absolute top-0 left-0 right-0 h-1.5 ${
+                  manualTriggerNeeded
+                    ? "bg-amber-500 animate-pulse"
+                    : "bg-gradient-to-r from-emerald-400 to-emerald-600"
+                }`}
+              />
 
-            <h3 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 truncate">
-              {current?.name}
-            </h3>
-            <p className="text-emerald-600 dark:text-emerald-400 font-mono text-lg font-medium">
-              {current?.number}
-            </p>
+              <h3 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 truncate">
+                {current?.name}
+              </h3>
+              <p className="text-emerald-600 dark:text-emerald-400 font-mono text-lg font-medium">
+                {current?.number}
+              </p>
 
-            {/* State Messages */}
-            <div className="mt-6 h-12 flex items-center justify-center">
-              {manualTriggerNeeded ? (
-                <Button
-                  onClick={manualOpen}
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-white animate-pulse shadow-amber-500/50"
-                >
-                  <ExternalLink size={16} className="mr-2" /> Open WhatsApp
-                  Manually
-                </Button>
-              ) : isWaitingForReturn ? (
-                <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-full">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-                  <span className="text-xs font-bold uppercase tracking-wide">
-                    Waiting for Return
+              {/* State Messages */}
+              <div className="mt-4 h-10 flex items-center justify-center">
+                {manualTriggerNeeded ? (
+                  <Button
+                    onClick={manualOpen}
+                    size="sm"
+                    className="bg-amber-500 hover:bg-amber-600 text-white animate-pulse shadow-amber-500/50"
+                  >
+                    <ExternalLink size={16} className="mr-2" /> Open WhatsApp
+                    Manually
+                  </Button>
+                ) : isWaitingForReturn ? (
+                  <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-full">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                    <span className="text-xs font-bold uppercase tracking-wide">
+                      Waiting for Return
+                    </span>
+                  </div>
+                ) : isRunning && countdown > 0 ? (
+                  <span className="text-zinc-400 text-sm italic">
+                    Preparing next contact...
                   </span>
-                </div>
-              ) : isRunning && countdown > 0 ? (
-                <span className="text-zinc-400 text-sm italic">
-                  Preparing next contact...
-                </span>
-              ) : (
-                !isRunning && (
-                  <span className="text-zinc-400 text-sm">Paused</span>
-                )
-              )}
+                ) : (
+                  !isRunning && (
+                    <span className="text-zinc-400 text-sm">Paused</span>
+                  )
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Control Deck - Flex-none ensures it doesn't shrink */}
+      {/* Control Deck - Flex-none ensures it doesn't shrink and stays at bottom */}
       <div className="flex-none p-6 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 z-20 safe-bottom shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 h-14 bg-zinc-100 dark:bg-zinc-950 rounded-2xl flex items-center px-4 justify-between border border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex-1 h-12 bg-zinc-100 dark:bg-zinc-950 rounded-2xl flex items-center px-4 justify-between border border-zinc-200 dark:border-zinc-800">
             <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">
               Auto-Delay
             </span>

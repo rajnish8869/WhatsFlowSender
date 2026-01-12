@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import { AppState } from "../types";
 import { Button } from "./ui/Button";
 import {
-  Trash2,
   ArrowRight,
   Search,
   CheckSquare,
@@ -62,37 +61,15 @@ export const InputView: React.FC<Props> = ({
   const isAllSelected = totalCount > 0 && selectedCount === totalCount;
 
   const toggleSelectAll = () => {
-    // If filtering, we only toggle the visible ones?
-    // Requirement is usually "Select All" applies to the current view or all?
-    // "Select & Send" usually implies selecting from the list.
-    // If a search is active, "Select All" usually selects the filtered results.
-    // Let's make it smart: If search is active, toggle only filtered. If cleared, toggle all.
-
     const targetIds = filteredContacts.map((c) => c.id);
     const allFilteredAreSelected =
       filteredContacts.length > 0 && filteredContacts.every((c) => c.selected);
 
-    // We can't use the simple TOGGLE_ALL_SELECTION payload for filtered lists easily without a new action,
-    // or we iterate. For simplicity and robustness, let's iterate dispatch or add a specific action.
-    // Given the constraints, let's just toggle individually or use the bulk toggle if no search.
-
     if (searchQuery.trim() === "") {
       dispatch({ type: "TOGGLE_ALL_SELECTION", payload: !isAllSelected });
     } else {
-      // Bulk toggle for filtered list
-      // We will simulate this by iterating, or ideally adding a BULK_TOGGLE action.
-      // For now, let's just iterate to be safe and compatible with existing reducer.
-      // Optimization: If list is huge, this is slow, but for <5000 contacts it's instant.
       targetIds.forEach((id) => {
-        // If we are selecting all, set selected. If deselecting, set unselected.
-        // But we need to check the current state of "allFilteredAreSelected"
-        // If ALL filtered are selected -> Deselect them.
-        // If SOME or NONE are selected -> Select them.
-
-        // This requires we know the specific target state.
         const shouldSelect = !allFilteredAreSelected;
-
-        // We only need to dispatch if the state is different
         const contact = filteredContacts.find((c) => c.id === id);
         if (contact && contact.selected !== shouldSelect) {
           dispatch({ type: "TOGGLE_CONTACT_SELECTION", payload: id });
@@ -162,7 +139,8 @@ export const InputView: React.FC<Props> = ({
   // --- MAIN LIST VIEW ---
   return (
     <div className="h-full flex flex-col animate-fade-in relative bg-zinc-50 dark:bg-zinc-950">
-      <div className="flex-none px-6 pt-6 pb-2 bg-white dark:bg-zinc-950 z-10">
+      {/* Header - Fixed */}
+      <div className="flex-none px-6 pt-6 pb-2 bg-white dark:bg-zinc-950 z-10 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-end justify-between mb-4">
           <div>
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">
@@ -178,7 +156,6 @@ export const InputView: React.FC<Props> = ({
             onClick={toggleSelectAll}
             className="text-sm font-semibold text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 transition-colors flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
           >
-            {/* Visual state depends on whether we are filtering or not */}
             {(searchQuery ? isAllFilteredSelected : isAllSelected) ? (
               <CheckSquare size={16} />
             ) : (
@@ -190,7 +167,7 @@ export const InputView: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="relative mt-2">
+        <div className="relative mt-2 mb-2">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
             size={18}
@@ -205,7 +182,8 @@ export const InputView: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-4 pb-44 space-y-2 custom-scrollbar">
+      {/* List - Flex Grow - No Bottom Padding for absolute */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-2 custom-scrollbar">
         {filteredContacts.length === 0 ? (
           <div className="text-center py-10 text-zinc-400">
             <p>No contacts match "{searchQuery}"</p>
@@ -263,12 +241,10 @@ export const InputView: React.FC<Props> = ({
             </div>
           ))
         )}
-        {/* Spacer */}
-        <div className="h-24" />
       </div>
 
-      {/* Fixed Bottom Action */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white dark:from-zinc-950 via-white/90 dark:via-zinc-950/90 to-transparent z-20 safe-bottom">
+      {/* Footer - Flex None - Stacks naturally at bottom */}
+      <div className="flex-none p-6 pt-4 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 z-20 safe-bottom">
         <Button
           fullWidth
           size="xl"
