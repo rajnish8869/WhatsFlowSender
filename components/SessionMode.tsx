@@ -17,6 +17,7 @@ import {
   Search,
   Ghost,
 } from "lucide-react";
+import { getFormattedNumber } from "../utils/phoneUtils";
 
 interface SessionModeProps {
   appState: AppState;
@@ -64,22 +65,13 @@ export const SessionMode: React.FC<SessionModeProps> = ({
     }
   }, [appState.currentContactIndex, activeContacts.length, dispatch]);
 
-  const getFormattedNumber = (num: string) => {
-    let clean = num.replace(/[^0-9]/g, "");
-    if (appState.defaultCountryCode && !clean.startsWith(appState.defaultCountryCode)) {
-      if (clean.startsWith("0")) clean = clean.substring(1);
-      return appState.defaultCountryCode + clean;
-    }
-    return clean;
-  };
-
   const handleSendText = () => {
     if (!currentContact) return;
     const msg = appState.messageTemplate.replace(
       /{name}/g,
       currentContact.name
     );
-    const finalNumber = getFormattedNumber(currentContact.number);
+    const finalNumber = getFormattedNumber(currentContact.number, appState.defaultCountryCode);
     const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(msg)}`;
     logger.info(`Opening WhatsApp for ${currentContact.name}`);
     window.open(url, "_blank");
@@ -104,7 +96,11 @@ export const SessionMode: React.FC<SessionModeProps> = ({
         logger.success("Opened share sheet (Web Share API)");
         return;
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e.name === "AbortError") {
+        logger.info("Share cancelled by user");
+        return;
+      }
       logger.info(
         "Web Share API unavailable or failed, falling back to native share."
       );
@@ -430,4 +426,3 @@ export const SessionMode: React.FC<SessionModeProps> = ({
       )}
     </div>
   );
-};

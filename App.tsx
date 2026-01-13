@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useCallback } from "react";
+import React, { useReducer, useEffect, useCallback, useRef } from "react";
 import { AppState, Action, AppStep, Contact } from "./types";
 import { InputView } from "./components/InputView";
 import { ComposeView } from "./components/ComposeView";
@@ -122,6 +122,13 @@ function reducer(state: AppState, action: Action): AppState {
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  // Use ref to track current step for event listeners without re-binding
+  const stepRef = useRef(state.step);
+
+  useEffect(() => {
+    stepRef.current = state.step;
+  }, [state.step]);
 
   // Persistence
   useEffect(() => {
@@ -270,20 +277,23 @@ export default function App() {
     if (!Capacitor.isNativePlatform()) return;
 
     const listener = CapacitorApp.addListener("backButton", () => {
+      // Use ref to check current step, ensuring listener isn't re-bound repeatedly
+      const currentStep = stepRef.current;
+
       // Mirror the same behavior as the header back button
-      if (state.step === "compose") {
+      if (currentStep === "compose") {
         dispatch({ type: "SET_STEP", payload: "input" });
         return;
       }
 
-      if (state.step === "running" || state.step === "manual") {
+      if (currentStep === "running" || currentStep === "manual") {
         if (confirm("Stop running session and go back to editor?")) {
           dispatch({ type: "SET_STEP", payload: "compose" });
         }
         return;
       }
 
-      if (state.step === "summary") {
+      if (currentStep === "summary") {
         dispatch({ type: "SET_STEP", payload: "input" });
         return;
       }
@@ -294,7 +304,7 @@ export default function App() {
     return () => {
       listener.remove();
     };
-  }, [state.step, dispatch]);
+  }, []);
 
   const renderStep = () => {
     switch (state.step) {
