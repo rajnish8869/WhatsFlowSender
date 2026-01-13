@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { AppState } from "../types";
 import { Button } from "./ui/Button";
 import {
@@ -9,6 +9,13 @@ import {
   Image as ImageIcon,
   Hand,
   Users,
+  Bold,
+  Italic,
+  Strikethrough,
+  BookTemplate,
+  Save,
+  Trash2,
+  Download,
 } from "lucide-react";
 
 interface Props {
@@ -19,6 +26,7 @@ interface Props {
 export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -35,19 +43,38 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
     }
   };
 
-  const insertVariable = () => {
+  const insertText = (textToInsert: string, wrap: boolean = false) => {
     if (textareaRef.current) {
       const start = textareaRef.current.selectionStart;
       const end = textareaRef.current.selectionEnd;
-      const text = state.messageTemplate;
-      const newText = text.substring(0, start) + "{name}" + text.substring(end);
+      const currentText = state.messageTemplate;
+      
+      let newText = "";
+      let newCursorPos = 0;
+
+      if (wrap && start !== end) {
+        // Wrap selection
+        const selection = currentText.substring(start, end);
+        newText = currentText.substring(0, start) + textToInsert + selection + textToInsert + currentText.substring(end);
+        newCursorPos = end + (textToInsert.length * 2);
+      } else {
+        // Insert at cursor
+        newText = currentText.substring(0, start) + textToInsert + currentText.substring(end);
+        newCursorPos = start + textToInsert.length;
+      }
+
       dispatch({ type: "SET_MESSAGE", payload: newText });
       setTimeout(() => {
         textareaRef.current?.focus();
-        // Move cursor after the inserted variable
-        const newCursorPos = start + 6; // length of "{name}"
         textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
+    }
+  };
+
+  const handleSaveTemplate = () => {
+    if (state.messageTemplate.trim()) {
+      dispatch({ type: "SAVE_TEMPLATE", payload: state.messageTemplate });
+      alert("Template saved!");
     }
   };
 
@@ -57,7 +84,55 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
     (state.messageTemplate.trim().length > 0 || state.attachment !== null);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 animate-fade-in">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 animate-fade-in relative">
+      
+      {/* Templates Drawer */}
+      {showTemplates && (
+        <div className="absolute inset-0 z-40 bg-white dark:bg-zinc-950 animate-slide-up flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-800">
+             <h3 className="font-bold text-lg flex items-center gap-2">
+               <BookTemplate size={20} className="text-emerald-500"/> Saved Templates
+             </h3>
+             <button onClick={() => setShowTemplates(false)} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full">
+               <X size={20}/>
+             </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+             {state.templates.length === 0 ? (
+               <div className="text-center py-10 text-zinc-400">
+                 <p>No saved templates yet.</p>
+                 <p className="text-xs mt-2">Write a message and click the Save icon.</p>
+               </div>
+             ) : (
+               state.templates.map((tmpl, idx) => (
+                 <div key={idx} className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 flex flex-col gap-3 group">
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-3 whitespace-pre-wrap">{tmpl}</p>
+                    <div className="flex gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                      <button 
+                        onClick={() => {
+                          dispatch({ type: 'SET_MESSAGE', payload: tmpl });
+                          setShowTemplates(false);
+                        }}
+                        className="flex-1 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+                      >
+                        <Download size={14} /> Load
+                      </button>
+                      <button 
+                         onClick={() => {
+                           if(confirm("Delete this template?")) dispatch({ type: 'DELETE_TEMPLATE', payload: idx });
+                         }}
+                         className="px-3 py-1.5 bg-red-50 dark:bg-red-900/10 text-red-500 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                         <Trash2 size={14} />
+                      </button>
+                    </div>
+                 </div>
+               ))
+             )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex-none px-6 pt-6 pb-4 flex justify-between items-start">
         <div>
@@ -81,16 +156,43 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
         <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden flex flex-col focus-within:ring-2 focus-within:ring-emerald-500/50 transition-all shadow-sm relative">
           
           {/* Toolbar */}
-          <div className="h-12 border-b border-zinc-100 dark:border-zinc-800 flex items-center px-3 gap-2 bg-zinc-50 dark:bg-zinc-900/50 flex-none z-10">
+          <div className="flex-none border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-2 flex flex-wrap gap-2 items-center z-10">
+            {/* Formatting */}
+            <div className="flex items-center bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 shadow-sm">
+              <button onClick={() => insertText('*', true)} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md text-zinc-500 dark:text-zinc-400 transition-colors" title="Bold">
+                <Bold size={16} />
+              </button>
+              <button onClick={() => insertText('_', true)} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md text-zinc-500 dark:text-zinc-400 transition-colors" title="Italic">
+                <Italic size={16} />
+              </button>
+              <button onClick={() => insertText('~', true)} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md text-zinc-500 dark:text-zinc-400 transition-colors" title="Strikethrough">
+                <Strikethrough size={16} />
+              </button>
+            </div>
+            
+            {/* Variable */}
             <button
-              onClick={insertVariable}
+              onClick={() => insertText('{name}')}
               className="px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm"
-              title="Insert Name Variable"
             >
               <Wand2 size={12} /> {"{name}"}
             </button>
+
             <div className="flex-1" />
 
+            {/* Template Actions */}
+            <div className="flex items-center gap-1">
+               <button onClick={handleSaveTemplate} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 transition-colors" title="Save as Template">
+                  <Save size={18} />
+               </button>
+               <button onClick={() => setShowTemplates(true)} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 transition-colors" title="Load Template">
+                  <BookTemplate size={18} />
+               </button>
+            </div>
+            
+            <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+            {/* Attach */}
             <input
               type="file"
               className="hidden"
@@ -105,8 +207,7 @@ export const ComposeView: React.FC<Props> = ({ state, dispatch }) => {
                   : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
             >
-              <Paperclip size={16} />
-              {state.attachment ? "Change" : "Attach"}
+              <Paperclip size={18} />
             </button>
           </div>
 

@@ -26,6 +26,7 @@ export interface AppState {
   step: AppStep;
   contacts: Contact[];
   messageTemplate: string;
+  templates: string[]; // List of saved message templates
   theme: 'light' | 'dark';
   currentContactIndex: number;
   attachment: Attachment | null;
@@ -40,6 +41,8 @@ export type Action =
   | { type: 'CLEAR_CONTACTS' }
   | { type: 'UPDATE_CONTACT_STATUS'; payload: { id: string; status: Contact['status'] } }
   | { type: 'SET_MESSAGE'; payload: string }
+  | { type: 'SAVE_TEMPLATE'; payload: string }
+  | { type: 'DELETE_TEMPLATE'; payload: number } // Index
   | { type: 'SET_ATTACHMENT'; payload: Attachment | null }
   | { type: 'UPDATE_CONFIG'; payload: Partial<AutomationConfig> }
   | { type: 'TOGGLE_THEME' }

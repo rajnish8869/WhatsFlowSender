@@ -16,6 +16,7 @@ const initialState: AppState = {
   step: "input",
   contacts: [],
   messageTemplate: INITIAL_MESSAGE,
+  templates: [],
   theme: "dark",
   currentContactIndex: -1,
   attachment: null,
@@ -38,6 +39,14 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, contacts: [], currentContactIndex: -1 };
     case "SET_MESSAGE":
       return { ...state, messageTemplate: action.payload };
+    case "SAVE_TEMPLATE":
+      if (state.templates.includes(action.payload)) return state;
+      return { ...state, templates: [...state.templates, action.payload] };
+    case "DELETE_TEMPLATE":
+      return {
+        ...state,
+        templates: state.templates.filter((_, i) => i !== action.payload),
+      };
     case "SET_ATTACHMENT":
       return { ...state, attachment: action.payload };
     case "UPDATE_CONFIG":
@@ -98,7 +107,10 @@ function reducer(state: AppState, action: Action): AppState {
         ...state.config,
         ...(action.payload.config || {}),
       };
-      return { ...state, ...rest, config: mergedConfig, attachment: null };
+      // Ensure templates is an array if loading from old state
+      const templates = Array.isArray(action.payload.templates) ? action.payload.templates : [];
+      
+      return { ...state, ...rest, templates, config: mergedConfig, attachment: null };
     default:
       return state;
   }
