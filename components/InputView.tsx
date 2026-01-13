@@ -9,6 +9,7 @@ import {
   Smartphone,
   ShieldAlert,
   Loader2,
+  Globe,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 
@@ -165,6 +166,22 @@ export const InputView: React.FC<Props> = ({
               ? "Deselect All"
               : "Select All"}
           </button>
+        </div>
+
+        {/* Country Code Fixer Input */}
+        <div className="flex items-center gap-3 mb-3 bg-zinc-50 dark:bg-zinc-900 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
+          <div className="w-8 h-8 rounded-lg bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+             <Globe size={16} />
+          </div>
+          <div className="flex-1">
+             <input 
+                type="text" 
+                value={state.defaultCountryCode} 
+                onChange={(e) => dispatch({ type: 'SET_DEFAULT_COUNTRY_CODE', payload: e.target.value.replace(/[^0-9]/g, '') })}
+                placeholder="Default Country Code (e.g. 1)"
+                className="bg-transparent border-none focus:outline-none text-sm w-full text-zinc-900 dark:text-white placeholder:text-zinc-400 font-medium"
+             />
+          </div>
         </div>
 
         <div className="relative mt-2 mb-2">

@@ -17,6 +17,7 @@ const initialState: AppState = {
   contacts: [],
   messageTemplate: INITIAL_MESSAGE,
   templates: [],
+  defaultCountryCode: "",
   theme: "dark",
   currentContactIndex: -1,
   attachment: null,
@@ -47,6 +48,8 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         templates: state.templates.filter((_, i) => i !== action.payload),
       };
+    case "SET_DEFAULT_COUNTRY_CODE":
+      return { ...state, defaultCountryCode: action.payload };
     case "SET_ATTACHMENT":
       return { ...state, attachment: action.payload };
     case "UPDATE_CONFIG":
@@ -107,10 +110,11 @@ function reducer(state: AppState, action: Action): AppState {
         ...state.config,
         ...(action.payload.config || {}),
       };
-      // Ensure templates is an array if loading from old state
+      // Ensure templates is an array and country code is string if loading from old state
       const templates = Array.isArray(action.payload.templates) ? action.payload.templates : [];
+      const defaultCountryCode = action.payload.defaultCountryCode || "";
       
-      return { ...state, ...rest, templates, config: mergedConfig, attachment: null };
+      return { ...state, ...rest, templates, defaultCountryCode, config: mergedConfig, attachment: null };
     default:
       return state;
   }

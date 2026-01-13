@@ -64,16 +64,23 @@ export const SessionMode: React.FC<SessionModeProps> = ({
     }
   }, [appState.currentContactIndex, activeContacts.length, dispatch]);
 
+  const getFormattedNumber = (num: string) => {
+    let clean = num.replace(/[^0-9]/g, "");
+    if (appState.defaultCountryCode && !clean.startsWith(appState.defaultCountryCode)) {
+      if (clean.startsWith("0")) clean = clean.substring(1);
+      return appState.defaultCountryCode + clean;
+    }
+    return clean;
+  };
+
   const handleSendText = () => {
     if (!currentContact) return;
     const msg = appState.messageTemplate.replace(
       /{name}/g,
       currentContact.name
     );
-    const url = `https://wa.me/${currentContact.number.replace(
-      /[^0-9]/g,
-      ""
-    )}?text=${encodeURIComponent(msg)}`;
+    const finalNumber = getFormattedNumber(currentContact.number);
+    const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(msg)}`;
     logger.info(`Opening WhatsApp for ${currentContact.name}`);
     window.open(url, "_blank");
   };

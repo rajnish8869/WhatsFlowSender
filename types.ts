@@ -27,6 +27,7 @@ export interface AppState {
   contacts: Contact[];
   messageTemplate: string;
   templates: string[]; // List of saved message templates
+  defaultCountryCode: string; // e.g., "1" or "91"
   theme: 'light' | 'dark';
   currentContactIndex: number;
   attachment: Attachment | null;
@@ -43,6 +44,7 @@ export type Action =
   | { type: 'SET_MESSAGE'; payload: string }
   | { type: 'SAVE_TEMPLATE'; payload: string }
   | { type: 'DELETE_TEMPLATE'; payload: number } // Index
+  | { type: 'SET_DEFAULT_COUNTRY_CODE'; payload: string }
   | { type: 'SET_ATTACHMENT'; payload: Attachment | null }
   | { type: 'UPDATE_CONFIG'; payload: Partial<AutomationConfig> }
   | { type: 'TOGGLE_THEME' }

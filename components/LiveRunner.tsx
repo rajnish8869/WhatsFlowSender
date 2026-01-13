@@ -139,6 +139,16 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
     current,
   ]);
 
+  const getFormattedNumber = (num: string) => {
+    let clean = num.replace(/[^0-9]/g, "");
+    if (state.defaultCountryCode && !clean.startsWith(state.defaultCountryCode)) {
+      // If number starts with 0 (common for local numbers), remove it before adding country code
+      if (clean.startsWith("0")) clean = clean.substring(1);
+      return state.defaultCountryCode + clean;
+    }
+    return clean;
+  };
+
   const attemptOpen = async (contact: Contact) => {
     const msg = state.messageTemplate.replace(/{name}/g, contact.name);
 
@@ -219,10 +229,8 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
         setManualTriggerNeeded(true); // Fallback to manual
       } else {
         // Text Mode
-        const url = `https://wa.me/${contact.number.replace(
-          /[^0-9]/g,
-          ""
-        )}?text=${encodeURIComponent(msg)}`;
+        const finalNumber = getFormattedNumber(contact.number);
+        const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(msg)}`;
 
         // Try to open window.
         const win = window.open(url, "_blank");
@@ -244,10 +252,8 @@ export const LiveRunner: React.FC<Props> = ({ state, dispatch }) => {
     if (current) {
       setManualTriggerNeeded(false);
       const msg = state.messageTemplate.replace(/{name}/g, current.name);
-      const url = `https://wa.me/${current.number.replace(
-        /[^0-9]/g,
-        ""
-      )}?text=${encodeURIComponent(msg)}`;
+      const finalNumber = getFormattedNumber(current.number);
+      const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(msg)}`;
       window.open(url, "_blank");
       setIsWaitingForReturn(true);
       setIsRunning(true);
